@@ -20,26 +20,20 @@
       {
         "pagePath": "pages/index/index",
         "text": "视频解析",
-        "iconPath": "images/home.png",
-        "selectedIconPath": "images/home_active.png"
+        "iconPath": "images/video.png",
+        "selectedIconPath": "images/video_active.png"
       },
       {
         "pagePath": "pages/image/image",
         "text": "图片去水印",
-        "iconPath": "images/home.png",
-        "selectedIconPath": "images/home_active.png"
+        "iconPath": "images/image.png",
+        "selectedIconPath": "images/image_active.png"
       },
       {
         "pagePath": "pages/convert/convert",
         "text": "格式转换",
-        "iconPath": "images/home.png",
-        "selectedIconPath": "images/home_active.png"
-      },
-      {
-        "pagePath": "pages/result/result",
-        "text": "我的",
-        "iconPath": "images/mine.png",
-        "selectedIconPath": "images/mine_active.png"
+        "iconPath": "images/convert.png",
+        "selectedIconPath": "images/convert_active.png"
       }
     ]
   },

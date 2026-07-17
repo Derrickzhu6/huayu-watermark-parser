@@ -4,6 +4,7 @@ Page({
 
   copyLink() {
     wx.setClipboardData({ data: this.data.serverUrl });
+    wx.showToast({ title: "已复制", icon: "success" });
   },
 
   onAbout() {
@@ -17,11 +18,22 @@ Page({
   onPrivacy() {
     wx.showModal({
       title: "隐私说明",
-      content: "1. 所有处理均在服务端完成
-2. 上传文件处理完成后自动删除
-3. 不会收集任何个人信息
-4. 不存储用户任何数据",
+      content: "1. 所有处理均在服务端完成\n2. 上传文件处理完成后自动删除\n3. 不会收集任何个人信息\n4. 不存储用户任何数据",
       showCancel: false
     });
+  },
+
+  onFeedback() {
+    wx.showModal({
+      title: "意见反馈",
+      content: "如需反馈问题或建议，请发送邮件至：huayu@example.com",
+      confirmText: "复制邮箱",
+      success: (res) => {
+        if (res.confirm) {
+          wx.setClipboardData({ data: "huayu@example.com" });
+          wx.showToast({ title: "邮箱已复制", icon: "success" });
+        }
+      }
+    });
   }
-});
+});

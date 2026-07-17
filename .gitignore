@@ -1,0 +1,17 @@
+﻿__pycache__/
+*.pyc
+results/*.png
+results/*.jpg
+results/*.bmp
+results/*.webp
+uploads/*.png
+uploads/*.jpg
+uploads/*.bmp
+uploads/*.webp
+processors/models/*.onnx
+processors/__pycache__/
+*.zip
+.DS_Store
+.git/
+
+miniprogram/project.private.config.json
