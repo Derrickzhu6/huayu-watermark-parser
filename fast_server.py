@@ -88,71 +88,54 @@ def simple_inpaint(img, mask, radius=3):
     return _cv2.inpaint(img, m, radius, _cv2.INPAINT_TELEA)
 
 def _detect_text_watermark(img):
-    """检测水印：取梯度+阈值置信度最高的5%像素，硬限制最终mask<20%"""
+    """极致保守检测：只在四角区域找小文字，绝不碰画面主体"""
     import cv2 as _cv2
     import numpy as _np
     h, w = img.shape[:2]
     gray = _cv2.cvtColor(img, _cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+    result = _np.zeros((h, w), dtype=_np.uint8)
 
-    # ── 梯度强度 ──
-    gx = _cv2.Sobel(gray, _cv2.CV_64F, 1, 0, ksize=3)
-    gy = _cv2.Sobel(gray, _cv2.CV_64F, 0, 1, ksize=3)
-    grad = _cv2.magnitude(gx, gy)
+    # 四角区域（每角占宽25% x 高20%）
+    ch, cw = int(h * 0.20), int(w * 0.25)
+    corners = [
+        (0, 0, cw, ch),                          # 左上
+        (w - cw, 0, cw, ch),                      # 右上
+        (0, h - ch, cw, ch),                      # 左下
+        (w - cw, h - ch, cw, ch),                 # 右下
+    ]
 
-    # ── 自适应阈值 ──
-    th = _np.zeros((h, w), dtype=_np.uint8)
-    for bs, c in [(7, 2), (11, 3)]:
-        ti = _cv2.adaptiveThreshold(gray, 255, _cv2.ADAPTIVE_THRESH_MEAN_C, _cv2.THRESH_BINARY_INV, bs, c)
-        tn = _cv2.adaptiveThreshold(gray, 255, _cv2.ADAPTIVE_THRESH_MEAN_C, _cv2.THRESH_BINARY, bs, c)
-        th = _cv2.bitwise_or(th, ti); th = _cv2.bitwise_or(th, tn)
+    for cx, cy, cw2, ch2 in corners:
+        roi = gray[cy:cy+ch2, cx:cx+cw2]
+        # 只在角落做自适应阈值
+        for bs, c in [(7, 2), (11, 3)]:
+            ti = _cv2.adaptiveThreshold(roi, 255, _cv2.ADAPTIVE_THRESH_MEAN_C,
+                                        _cv2.THRESH_BINARY_INV, bs, c)
+            tn = _cv2.adaptiveThreshold(roi, 255, _cv2.ADAPTIVE_THRESH_MEAN_C,
+                                        _cv2.THRESH_BINARY, bs, c)
+            combined = _cv2.bitwise_or(ti, tn)
 
-    # ── 置信度评分并取前5% ──
-    conf = grad.astype(_np.float32) * (th.astype(_np.float32) / 255.0)
-    k = max(50, int(h * w * 0.05))
-    flat = conf.flatten()
-    idx = _np.argpartition(flat, -k)[-k:]
-    mask = _np.zeros((h, w), dtype=_np.uint8)
-    mask.flat[idx] = 255
+        # 连接文字笔画
+        k = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
+        combined = _cv2.morphologyEx(combined, _cv2.MORPH_CLOSE, k, iterations=1)
 
-    # ── 闭运算连接文字 ──
-    kc = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (5, 5))
-    mask = _cv2.morphologyEx(mask, _cv2.MORPH_CLOSE, kc, iterations=1)
+        # 只保留极小区域（文字水印都是小字）
+        n, labels, stats, _ = _cv2.connectedComponentsWithStats(combined, 8)
+        min_a = max(5, int(h * w * 0.0001))
+        max_a = int(h * w * 0.015)
+        for i in range(1, n):
+            area = stats[i, _cv2.CC_STAT_AREA]
+            bw = stats[i, _cv2.CC_STAT_WIDTH]
+            bh = stats[i, _cv2.CC_STAT_HEIGHT]
+            if min_a < area < max_a:
+                if bw < bh * 6 and bh < bw * 6:
+                    result[labels == i] = 255
 
-    # ── 加入极亮/暗像素（严格阈值） ──
-    bright = _np.where(gray > 240, 255, 0).astype(_np.uint8)
-    dark = _np.where(gray < 10, 255, 0).astype(_np.uint8)
-    mask = _cv2.bitwise_or(mask, bright)
-    mask = _cv2.bitwise_or(mask, dark)
+    # 极少膨胀（只覆盖笔画边缘）
+    if _np.sum(result > 0) >= 5:
+        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (2, 2))
+        result = _cv2.dilate(result, kd, iterations=1)
 
-    # ── 移除＜5像素的孤立噪点 ──
-    n, labels, stats, _ = _cv2.connectedComponentsWithStats(mask, 8)
-    clean = _np.zeros((h, w), dtype=_np.uint8)
-    for i in range(1, n):
-        if stats[i, _cv2.CC_STAT_AREA] >= 5:
-            clean[labels == i] = 255
-
-    # ── 微膨胀 ──
-    if _np.sum(clean > 0) >= 5:
-        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
-        clean = _cv2.dilate(clean, kd, iterations=1)
-
-    # ── 硬限制：如果mask超过15%，只保留最大的连通区域直到≤15% ──
-    total = _np.sum(clean > 0)
-    max_px = h * w * 0.15
-    if total > max_px:
-        n2, labs2, stats2, _ = _cv2.connectedComponentsWithStats(clean, 8)
-        items = [(stats2[i, _cv2.CC_STAT_AREA], i) for i in range(1, n2)]
-        items.sort(reverse=True)
-        clamped = _np.zeros((h, w), dtype=_np.uint8)
-        cum = 0
-        for area, idx in items:
-            if cum >= max_px: break
-            clamped[labs2 == idx] = 255
-            cum += area
-        if _np.sum(clamped > 0) >= 10:
-            return clamped
-
-    return clean
+    return result
 
 def _limit_resolution(img, max_px=1080):
     """限制图片最大边长，加速处理"""
@@ -605,6 +588,32 @@ class FastHandler(BaseHTTPRequestHandler):
         text = data.get("url", data.get("text", "")) if isinstance(data, dict) else ""
         if not text:
             return self.send_error(400, "请粘贴分享链接")
+        # 快手视频直接走快手解析器（绕过 yt-dlp）
+        if "kuaishou.com" in text.lower() or "chenzhongtech.com" in text.lower():
+            try:
+                from processors.kuaishou_parser import parse_url as ks_parse
+                ks_result = ks_parse(text)
+                if ks_result["success"]:
+                    data = ks_result["data"]
+                    self.send_json({
+                        "success": True,
+                        "url": data.get("video_url", ""),
+                        "video_url": data.get("video_url", ""),
+                        "title": data.get("title", ""),
+                        "cover_url": data.get("cover_url", ""),
+                        "duration": data.get("duration", 0),
+                        "platform": "kuaishou",
+                        "author": data.get("author", ""),
+                        "content_type": "video",
+                    })
+                    return
+                else:
+                    self.send_json({"success": False, "error": ks_result.get("error", "快手解析失败")})
+                    return
+            except Exception as ks_e:
+                self.send_json({"success": False, "error": f"快手解析异常: {str(ks_e)[:60]}"})
+                return
+        
         lazy_import_parse()
         try:
             # 先提取纯净链接

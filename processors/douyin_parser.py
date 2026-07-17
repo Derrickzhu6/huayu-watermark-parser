@@ -256,6 +256,15 @@ def extract_platform_url(text):
     if not text or not text.strip():
         return (None, None)
     original = text.strip()
+    # 快手短链特殊处理：先解析重定向
+    if "v.kuaishou.com" in original.lower():
+        from processors.kuaishou_parser import resolve_short_url, extract_photo_id
+        resolved = resolve_short_url(original)
+        if resolved:
+            pid = extract_photo_id(resolved)
+            if pid:
+                return ("kuaishou", f"https://www.kuaishou.com/short-video/{pid}")
+    
     douyin_url = extract_douyin_url(original)
     if douyin_url:
         return ("douyin", douyin_url)
@@ -272,7 +281,7 @@ def extract_platform_url(text):
                 return ("xiaohongshu", resolved)
             elif "bilibili.com" in url_lower or "b23.tv" in url_lower:
                 return ("bilibili", resolved)
-            elif "kuaishou.com" in url_lower:
+            elif "kuaishou.com" in url_lower or "chenzhongtech.com" in url_lower:
                 return ("kuaishou", url)
             else:
                 return ("unknown", url)
@@ -663,6 +672,15 @@ def parse_with_retry(url: str) -> dict:
             # 等待短暂重试间隔
             time.sleep(0.5)
 
+    # 如果是快手链接且全部策略失败，尝试快手专用解析器
+    if "kuaishou" in url.lower() or "chenzhongtech" in url.lower():
+        try:
+            from processors.kuaishou_parser import parse_url as ks_parse
+            ks_result = ks_parse(url)
+            if ks_result["success"]:
+                return {"success": True, "data": ks_result["data"]}
+        except Exception as ks_e:
+            logger.warning(f"Kuaishou parser fallback failed: {ks_e}")
     return {"success": False, "data": None, "error": last_error}
 
 
