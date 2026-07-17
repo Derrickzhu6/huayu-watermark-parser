@@ -1,4 +1,4 @@
-﻿import os, sys, json, io, uuid, re, time, asyncio
+import os, sys, json, io, uuid, re, time, asyncio
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 import cgi
@@ -77,6 +77,95 @@ def lazy_import_filter():
     from processors.color_filter import remove_by_color as _rc, remove_alpha_watermark as _ra
     frequency_filter = _ff; text_watermark_removal = _tw
     remove_by_color = _rc; remove_alpha_watermark = _ra
+
+def simple_inpaint(img, mask, radius=3):
+    """快速去水印：直接使用OpenCV TELEA算法，无复杂分析"""
+    import cv2 as _cv2
+    import numpy as _np
+    m = (mask > 0).astype(_np.uint8) * 255
+    k = _np.ones((3, 3), _np.uint8)
+    m = _cv2.dilate(m, k, iterations=1)
+    return _cv2.inpaint(img, m, radius, _cv2.INPAINT_TELEA)
+
+def _detect_text_watermark(img):
+    """检测水印：取梯度+阈值置信度最高的5%像素，硬限制最终mask<20%"""
+    import cv2 as _cv2
+    import numpy as _np
+    h, w = img.shape[:2]
+    gray = _cv2.cvtColor(img, _cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+
+    # ── 梯度强度 ──
+    gx = _cv2.Sobel(gray, _cv2.CV_64F, 1, 0, ksize=3)
+    gy = _cv2.Sobel(gray, _cv2.CV_64F, 0, 1, ksize=3)
+    grad = _cv2.magnitude(gx, gy)
+
+    # ── 自适应阈值 ──
+    th = _np.zeros((h, w), dtype=_np.uint8)
+    for bs, c in [(7, 2), (11, 3)]:
+        ti = _cv2.adaptiveThreshold(gray, 255, _cv2.ADAPTIVE_THRESH_MEAN_C, _cv2.THRESH_BINARY_INV, bs, c)
+        tn = _cv2.adaptiveThreshold(gray, 255, _cv2.ADAPTIVE_THRESH_MEAN_C, _cv2.THRESH_BINARY, bs, c)
+        th = _cv2.bitwise_or(th, ti); th = _cv2.bitwise_or(th, tn)
+
+    # ── 置信度评分并取前5% ──
+    conf = grad.astype(_np.float32) * (th.astype(_np.float32) / 255.0)
+    k = max(50, int(h * w * 0.05))
+    flat = conf.flatten()
+    idx = _np.argpartition(flat, -k)[-k:]
+    mask = _np.zeros((h, w), dtype=_np.uint8)
+    mask.flat[idx] = 255
+
+    # ── 闭运算连接文字 ──
+    kc = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (5, 5))
+    mask = _cv2.morphologyEx(mask, _cv2.MORPH_CLOSE, kc, iterations=1)
+
+    # ── 加入极亮/暗像素（严格阈值） ──
+    bright = _np.where(gray > 240, 255, 0).astype(_np.uint8)
+    dark = _np.where(gray < 10, 255, 0).astype(_np.uint8)
+    mask = _cv2.bitwise_or(mask, bright)
+    mask = _cv2.bitwise_or(mask, dark)
+
+    # ── 移除＜5像素的孤立噪点 ──
+    n, labels, stats, _ = _cv2.connectedComponentsWithStats(mask, 8)
+    clean = _np.zeros((h, w), dtype=_np.uint8)
+    for i in range(1, n):
+        if stats[i, _cv2.CC_STAT_AREA] >= 5:
+            clean[labels == i] = 255
+
+    # ── 微膨胀 ──
+    if _np.sum(clean > 0) >= 5:
+        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
+        clean = _cv2.dilate(clean, kd, iterations=1)
+
+    # ── 硬限制：如果mask超过15%，只保留最大的连通区域直到≤15% ──
+    total = _np.sum(clean > 0)
+    max_px = h * w * 0.15
+    if total > max_px:
+        n2, labs2, stats2, _ = _cv2.connectedComponentsWithStats(clean, 8)
+        items = [(stats2[i, _cv2.CC_STAT_AREA], i) for i in range(1, n2)]
+        items.sort(reverse=True)
+        clamped = _np.zeros((h, w), dtype=_np.uint8)
+        cum = 0
+        for area, idx in items:
+            if cum >= max_px: break
+            clamped[labs2 == idx] = 255
+            cum += area
+        if _np.sum(clamped > 0) >= 10:
+            return clamped
+
+    return clean
+
+def _limit_resolution(img, max_px=1080):
+    """限制图片最大边长，加速处理"""
+    import cv2 as _cv2
+    h, w = img.shape[:2]
+    scale = 1.0
+    if max(h, w) > max_px:
+        scale = max_px / max(h, w)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        img = _cv2.resize(img, (new_w, new_h), interpolation=_cv2.INTER_AREA)
+    return img, scale
+
 
 # 
 def lazy_import_parse():
@@ -279,55 +368,65 @@ class FastHandler(BaseHTTPRequestHandler):
         self.send_json({"filename": name, "path": f"/api/image/{name}"})
     
     def handle_inpaint(self, data):
-        lazy_import_ml()
+        lazy_import_cv()
         filename = data.get("filename", "")
         if not filename:
-            return self.send_error(400, "Missing filename")
+            return self.send_error(400, "缺少文件名")
         src_path = UPLOAD_DIR / filename
         if not src_path.exists():
             return self.send_error(404, "原图不存在")
         img = imread_unicode(src_path)
         if img is None:
             return self.send_error(400, "图片读取失败")
-        
+
+        import uuid
         use_auto = data.get("use_auto") == "true"
         if use_auto:
             try:
-                mask = auto_detect_watermark(img)
-                pixel_count = int(np.sum(mask > 0)) if mask is not None else 0
+                mask = _detect_text_watermark(img)
+                pixel_count = int(np.sum(mask > 0))
                 mask_ratio = pixel_count / (img.shape[0] * img.shape[1]) if pixel_count > 0 else 0
-                if mask_ratio > 0.60:
-                    return self.send_error(400, "检测到的区域过大（{:.0%}），请尝试画笔手动涂抹".format(mask_ratio))
-                if pixel_count < 5:
-                    return self.send_error(400, "未检测到水印区域，请尝试画笔手动涂抹")
-                result = improved_inpaint(img, mask, quality="quality", use_texture=True)
-                out_name = f"out_{uuid.uuid4().hex}.png"
+                if pixel_count < 10:
+                    return self.send_error(400, "未检测到有效水印区域，请尝试画笔手动涂抹")
+                # 如果检测区域太大（超过25%），返回失败建议使用画笔
+                if mask_ratio > 0.25:
+                    return self.send_error(400, "图片复杂度过高，请使用画笔手动涂抹水印区域")
+                proc_img, scale = _limit_resolution(img, 1080)
+                if scale < 1.0:
+                    m = cv2.resize(mask, (proc_img.shape[1], proc_img.shape[0]), interpolation=cv2.INTER_NEAREST)
+                else:
+                    m = mask
+                result = simple_inpaint(proc_img, m, radius=3)
+                if scale < 1.0:
+                    result = cv2.resize(result, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
+                out_name = f"out_" + uuid.uuid4().hex + ".png"
                 out_path = RESULT_DIR / out_name
                 imwrite_unicode(out_path, result)
-                return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
+                return self.send_json({"filename": out_name, "path": "/api/image/" + out_name})
             except Exception as e:
-                return self.send_error(500, f"自动去水印失败: {str(e)}")
-        
+                return self.send_error(500, f"自动去水印失败: " + str(e))
+
         points_json = data.get("points_json", "[]")
         try:
             points = json.loads(points_json)
             if not points or len(points) < 3:
                 return self.send_error(400, "请先在图片上涂抹水印区域（至少涂抹3个点）")
             radius = int(data.get("brush_radius", data.get("radius", "15")))
+            # Lazy import for brush mask creation
+            from processors.inpainting import create_mask_from_strokes
             mask = create_mask_from_strokes(img.shape, points, radius)
             pixel_count = int(np.sum(mask > 0))
             if pixel_count < 10:
                 return self.send_error(400, "涂抹区域太小，请扩大涂抹范围")
-            result = improved_inpaint(img, mask, quality="quality", use_texture=True)
-            out_name = f"out_{uuid.uuid4().hex}.png"
+            result = simple_inpaint(img, mask, radius=max(3, min(radius, 10)))
+            out_name = f"out_" + uuid.uuid4().hex + ".png"
             out_path = RESULT_DIR / out_name
             imwrite_unicode(out_path, result)
-            return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
+            return self.send_json({"filename": out_name, "path": "/api/image/" + out_name})
         except json.JSONDecodeError:
             return self.send_error(400, "涂抹数据格式错误")
         except Exception as e:
-            return self.send_error(500, f"修复失败: {str(e)}")
-    
+            return self.send_error(500, f"修复失败: " + str(e))
     def handle_remove_text(self, data):
         lazy_import_ml()
         filename = data.get("filename", "")
