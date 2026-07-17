@@ -1,0 +1,21 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">短视频链接解析</view>
+    <view class="card-desc">支持 抖音 / B站 链接去水印</view>
+    <textarea class="input" placeholder="粘贴分享链接..." bindinput="onInput" value="{{url}}"></textarea>
+    <button class="btn-primary" bindtap="onParse" loading="{{loading}}">{{loading ? '解析中...' : '解析视频'}}</button>
+  </view>
+
+  <view class="result" wx:if="{{result}}">
+    <view class="card">
+      <video src="{{result.video_url}}" controls class="video"></video>
+      <view class="result-info">
+        <text class="title">{{result.title}}</text>
+        <text class="platform">来源: {{result.platform}}</text>
+      </view>
+      <button class="btn-download" bindtap="onDownload" wx:if="{{result.video_url}}">下载视频</button>
+    </view>
+  </view>
+
+  <view class="footer">服务由 桦煜科技 提供 · 视频不存储</view>
+</view>

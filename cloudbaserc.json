@@ -1,0 +1,26 @@
+{
+  "envId": "huayu-watermark-d9fws8ob82d31a7f",
+  "framework": {
+    "plugins": {
+      "server": {
+        "use": "@cloudbase/framework-plugin-container",
+        "inputs": {
+          "name": "huayu-parser",
+          "serviceName": "huayu-parser",
+          "dockerfilePath": "./Dockerfile.wechat",
+          "cpu": 0.25,
+          "mem": 0.5,
+          "minNum": 0,
+          "maxNum": 1,
+          "timeout": 30,
+          "envParams": {},
+          "servicePort": 8000,
+          "livenessProbe": {
+            "path": "/",
+            "protocol": "HTTP"
+          }
+        }
+      }
+    }
+  }
+}

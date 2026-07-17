@@ -1,0 +1,17 @@
+.container { padding: 12px; }
+.card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.card-desc { font-size: 12px; color: #636e72; margin-bottom: 12px; }
+.type-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.type-tab { flex: 1; padding: 8px; text-align: center; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; color: #636e72; }
+.type-tab.active { border-color: #e74c3c; color: #e74c3c; background: #fff5f5; font-weight: 600; }
+.btn-upload { width: 100%; padding: 16px; background: #f8f9fa; border: 2px dashed #e0e0e0; border-radius: 10px; font-size: 14px; color: #636e72; text-align: center; margin-bottom: 8px; }
+.file-info { font-size: 12px; color: #636e72; margin-bottom: 8px; padding: 4px 0; }
+.format-picker { margin-bottom: 8px; }
+.picker-btn { width: 100%; padding: 10px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; color: #636e72; text-align: center; box-sizing: border-box; }
+.btn-primary { width: 100%; padding: 10px; background: linear-gradient(135deg, #e74c3c, #2ecc71); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; }
+.btn-primary[disabled] { opacity: 0.5; }
+.btn-download { width: 100%; padding: 10px; background: #e74c3c; color: #fff; border: none; border-radius: 8px; font-size: 14px; margin-top: 8px; }
+.result-section { margin-top: 12px; padding: 10px; background: #eafff0; border-radius: 8px; }
+.result-info { font-size: 13px; color: #00b894; margin-bottom: 8px; }
+.footer { text-align: center; font-size: 11px; color: #b2bec3; padding: 20px 0; }

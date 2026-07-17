@@ -1,0 +1,16 @@
+{
+  "description": "桦煜去水印 - 微信小程序",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true,
+    "autoAudits": false,
+    "scopeDataCheck": false
+  },
+  "appid": "",
+  "projectname": "桦煜去水印",
+  "libVersion": "3.3.0",
+  "condition": {}
+}

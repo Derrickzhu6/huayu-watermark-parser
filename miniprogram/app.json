@@ -1,0 +1,51 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/image/image",
+    "pages/convert/convert",
+    "pages/result/result"
+  ],
+  "window": {
+    "navigationBarTitleText": "桦煜去水印",
+    "navigationBarBackgroundColor": "#e74c3c",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f8f9fc"
+  },
+  "tabBar": {
+    "color": "#999",
+    "selectedColor": "#e74c3c",
+    "backgroundColor": "#fff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "视频解析",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home_active.png"
+      },
+      {
+        "pagePath": "pages/image/image",
+        "text": "图片去水印",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home_active.png"
+      },
+      {
+        "pagePath": "pages/convert/convert",
+        "text": "格式转换",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home_active.png"
+      },
+      {
+        "pagePath": "pages/result/result",
+        "text": "我的",
+        "iconPath": "images/mine.png",
+        "selectedIconPath": "images/mine_active.png"
+      }
+    ]
+  },
+  "permission": {
+    "scope.writePhotosAlbum": {
+      "desc": "保存到相册需要您的授权"
+    }
+  }
+}

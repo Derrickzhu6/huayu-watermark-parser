@@ -1,0 +1,420 @@
+﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>桦煜去水印</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,SegoeUI,Roboto,sans-serif;background:#f8f9fc;color:#2d3436;min-height:100vh;padding-bottom:70px}
+.tab{display:none}
+.tab.active{display:block}
+.upload-card{margin:10px;background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(231,76,60,0.08)}
+.upload-area{display:block;padding:30px 16px;text-align:center;cursor:pointer}
+.btn-primary{display:block;width:calc(100% - 20px);margin:10px;padding:11px;background:linear-gradient(135deg,#e74c3c,#2ecc71);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:center}
+.btn-primary:active{transform:scale(.97)}
+.btn-download{padding:5px 12px;background:#e74c3c;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer}
+.panel-header{padding:10px 14px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f0f0f5;background:#fafafa}
+.panel-body{position:relative;min-height:50px;text-align:center}
+.panel-body img{max-width:100%;max-height:260px;display:block;margin:0 auto;border-radius:6px}
+#imgWrapper{position:relative;display:inline-block;margin:0 auto}
+#imgC{position:absolute;top:0;left:0;z-index:5;cursor:crosshair;display:none}
+#imgC.active{display:block}
+.st{display:none;padding:8px 12px;margin:6px 10px;border-radius:8px;font-size:12px;text-align:center}
+.st.err{display:block;background:#ffeaea;color:#d63031}
+.st.ok{display:block;background:#eafff0;color:#00b894}
+.st.inf{display:block;background:#e8f4fd;color:#0984e3}
+.spin{position:absolute;top:50%;left:50%;width:28px;height:28px;border:3px solid #e0e0e0;border-top:3px solid #e74c3c;border-radius:50%;animation:s .7s linear infinite;display:none;transform:translate(-50%,-50%)}
+@keyframes s{to{transform:translate(-50%,-50%) rotate(360deg)}}
+.tools-card{margin:10px;background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(231,76,60,0.08)}
+.tools-header{padding:10px 14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;border-bottom:1px solid #f0f0f5;background:#fafafa}
+.tools-body{padding:8px 10px}
+.tools-row{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.tool-btn{padding:7px 12px;border:1.5px solid #e0e0e0;border-radius:8px;background:#fff;color:#636e72;font-size:11px;cursor:pointer;flex:1;text-align:center;transition:all .15s}
+.tool-btn.active{border-color:#e74c3c;background:#fff5f5;color:#e74c3c;font-weight:600}
+.tool-btn:disabled{opacity:.4;cursor:not-allowed}
+.tool-slider{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px}
+.tool-slider input{flex:1;accent-color:#e74c3c}
+.result-card{display:none;margin:10px;background:#fff;border-radius:14px}
+.result-card.on{display:block}
+.video-container video{width:100%;display:block;max-height:360px;background:#000;border-radius:6px}
+textarea{width:100%;min-height:70px;border:2px solid #e0e0e0;border-radius:10px;padding:10px;font-size:13px;resize:none;outline:none;font-family:inherit}
+textarea:focus{border-color:#e74c3c}
+select{padding:9px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;outline:none;width:100%;margin-bottom:8px;font-family:inherit}
+select:focus{border-color:#e74c3c}
+.file-drop{display:block;padding:14px 10px;text-align:center;cursor:pointer;border:2px dashed #e0e0e0;border-radius:10px;background:#f8f9fa;margin-bottom:8px;font-size:13px;color:#636e72}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border-top:1px solid rgba(0,0,0,.06);z-index:100;height:56px}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:#b2bec3;font-size:10px;border:none;background:none;padding:0}
+.tab-item.active{color:#e74c3c}
+.tab-item .ti{font-size:18px}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#2d3436;color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;z-index:999;display:none;white-space:nowrap}
+.brush-hint{position:absolute;top:4px;right:4px;background:rgba(108,92,231,.85);color:#fff;padding:2px 8px;border-radius:4px;font-size:10px;z-index:10;display:none;pointer-events:none}
+.brush-hint.on{display:block}
+</style></head><body><div style="background:linear-gradient(135deg,#e74c3c,#2ecc71);padding:14px 16px;text-align:center;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(231,76,60,0.3)"><div style="font-size:18px;font-weight:700;color:#fff;letter-spacing:1px">桦煜去水印</div><div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px">图片 · 视频 · 格式转换</div></div><div class="toast" id="toast"></div>
+
+<!-- Tab 1: 图片去水印 -->
+<div id="tab1" class="tab active">
+  <div class="upload-card" id="uploadSection">
+    <label class="upload-area" id="uploadLabel">
+      <div style="font-size:36px;margin-bottom:8px">📷</div>
+      <div style="font-size:14px;color:#636e72">点击添加照片</div>
+      <div style="font-size:11px;color:#b2bec3;margin-top:4px">支持 JPG / PNG / WEBP</div>
+    </label>
+    <input type="file" id="imgUpload" accept="image/*" style="display:none">
+  </div>
+  <div id="imgEditSection" style="display:none">
+    <div class="panel-header"><span>原图</span><button class="btn-download" id="resetBtn" style="display:none;background:#636e72" onclick="resetUpload()">↩ 重选</button></div>
+    <div class="panel-body"><div id="imgWrapper"><img id="imgP"><canvas id="imgC"></canvas><div class="brush-hint" id="brushHint">✏️ 涂抹水印区域</div></div></div>
+    <div class="panel-header"><span>处理结果</span><button class="btn-download" id="dlBtn" style="display:none">⬇ 下载</button></div>
+    <div class="panel-body"><img id="imgR"><div class="spin" id="imgSp2"></div></div>
+  </div>
+  <button class="btn-primary" id="autoBtn">✨ 一键智能去水印</button>
+  <div class="tools-card">
+    <div class="tools-header"><span>🛠 工具选项</span></div>
+    <div class="tools-body">
+      <div class="tools-row">
+        <button class="tool-btn active" id="tBrush">✏️ 涂抹修复</button>
+      </div>
+      <div id="brushControls" style="display:block">
+        <div class="tool-slider"><span>画笔大小:</span><input type="range" id="brSz" min="3" max="60" value="20"><span id="brVal">20px</span></div>
+        <button class="btn-primary" id="brGo" style="margin:4px 0;padding:8px;font-size:12px">▶ 执行涂抹去水印</button>
+      </div>
+    </div>
+  </div>
+  <div id="stPanel" style="display:none"><div class="st" id="imgSt"></div></div>
+</div>
+
+<!-- Tab 2: 短视频解析 -->
+<div id="tab2" class="tab">
+  <div class="upload-card" style="margin:10px;padding:14px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔗 粘贴短视频分享链接</div>
+    <textarea id="urlInput" placeholder="粘贴抖音/B站分享链接..."></textarea>
+    <button class="btn-primary" id="urlBtn" style="margin:8px 0">🚀 解析视频</button>
+    <div class="st" id="urlSt"></div>
+  </div>
+  <div class="result-card" id="urlResult">
+    <div class="panel-header"><span>✅ 解析结果</span><button class="btn-download" id="urlDlBtn">⬇ 下载</button></div>
+    <div class="video-container"><video id="urlVideo" controls playsinline webkit-playsinline></video></div>
+    <div style="padding:8px 12px;font-size:12px;color:#636e72"><span id="urlTitle"></span> <span id="urlDuration"></span> <span id="urlPlatform"></span></div>
+  </div>
+  </div>
+  <!-- Tab 3: 格式转换 -->
+<div id="tab3" class="tab">
+  <div class="upload-card" style="margin:10px;padding:14px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔄 文件格式转换</div>
+    <label class="file-drop" id="convDrop">📁 点击选择文件</label>
+    <input type="file" id="convFile" style="display:none">
+    <select id="convFmt">
+      <option value="">选择目标格式...</option>
+      <optgroup label="图片">
+        <option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WEBP</option><option value="bmp">BMP</option>
+      </optgroup>
+      <optgroup label="视频">
+        <option value="mp4">MP4</option><option value="avi">AVI</option><option value="mov">MOV</option><option value="gif">GIF</option>
+      </optgroup>
+      <optgroup label="音频">
+        <option value="mp3">MP3</option><option value="wav">WAV</option><option value="aac">AAC</option><option value="ogg">OGG</option>
+      </optgroup>
+      <optgroup label="文档编码">
+        <option value="utf8">UTF-8</option><option value="gbk">GBK</option><option value="gb2312">GB2312</option><option value="big5">BIG5</option>
+      </optgroup>
+    </select>
+    <button class="btn-primary" id="convBtn" style="margin:4px 0">开始转换</button>
+    <div class="st" id="convSt"></div>
+    <img id="convR" style="display:none;max-width:100%;margin-top:8px;border-radius:6px">
+    <div id="convDl" style="display:none;margin-top:6px"></div>
+  </div>
+</div>
+
+<div style="padding:12px 16px;font-size:10px;color:#b2bec3;text-align:center;line-height:1.6;margin-bottom:60px">📌 本工具所有处理在本地完成，不上传服务器，不存储您的任何文件。<br>处理完成后请及时下载，结果文件不会保留。仅供个人学习使用，请遵守相关法律法规。</div><div class="tab-bar">
+  <button class="tab-item active" onclick="swTab(1)"><span class="ti">🖼️</span>图片去水印</button>
+  <button class="tab-item" onclick="swTab(2)"><span class="ti">▶️</span>视频解析</button>
+  <button class="tab-item" onclick="swTab(3)"><span class="ti">🔄</span>格式转换</button>
+</div>
+
+<script>
+function toast(m){var t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(function(){t.style.display="none"},2000)}
+function swTab(i){document.querySelectorAll(".tab,.tab-item").forEach(function(e){e.classList.remove("active")});document.getElementById("tab"+i).classList.add("active");document.querySelectorAll(".tab-item")[i-1].classList.add("active")}
+
+var imgFileName=null,brushPts=[],brushActive=false,isD=false,canvas=null,ctx=null;
+
+// 上传照片
+function triggerUpload(){document.getElementById("imgUpload").click()}
+document.getElementById("uploadLabel").addEventListener("click",triggerUpload);
+document.getElementById("uploadLabel").addEventListener("touchend",function(e){e.preventDefault();triggerUpload()});
+document.getElementById("imgUpload").addEventListener("change",async function(e){
+  var f=e.target.files[0];if(!f)return;
+  var fd=new FormData();fd.append("file",f);
+  setSt("imgSt","上传中...","inf");
+  try{
+    var r=await fetch("/api/upload",{method:"POST",body:fd});var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error);
+    imgFileName=j.filename;
+    document.getElementById("imgP").src=window.location.origin+j.path;
+    document.getElementById("imgEditSection").style.display="block";
+    document.getElementById("stPanel").style.display="block";
+    document.getElementById("uploadSection").style.display="none";
+    brushPts=[];brushActive=false;isD=false;
+    hideSt("imgSt");
+    setTimeout(setupCanvas,100);
+  }catch(e){setSt("imgSt","上传失败: "+e.message,"err")}
+});
+
+// 画布初始化
+function setupCanvas(){
+  var img=document.getElementById("imgP");
+  if(img.complete&&img.naturalWidth>0){setTimeout(_resizeCanvas,100)}
+  else{img.onload=function(){setTimeout(_resizeCanvas,100)}}
+}
+function _resizeCanvas(){
+  canvas=document.getElementById("imgC");
+  if(!canvas||!canvas.getContext) return;
+  ctx=canvas.getContext("2d");
+  var img=document.getElementById("imgP");
+  var nw=img.naturalWidth,nh=img.naturalHeight;
+  canvas.width=nw;canvas.height=nh;
+  // canvas size = img display size
+  canvas.style.width=img.clientWidth+"px";
+  canvas.style.height=img.clientHeight+"px";
+  // clear
+  ctx.clearRect(0,0,nw,nh);
+  // redraw existing points
+  if(brushPts.length>0) redrawBrush();
+}
+window.addEventListener('resize',function(){var im=document.getElementById('imgP');if(im&&im.complete)_resizeCanvas()});
+
+// 涂抹修复工具切换
+document.getElementById("tBrush").addEventListener("click",function(){
+  document.querySelectorAll(".tool-btn").forEach(function(b){b.classList.remove("active")});
+  this.classList.add("active");
+  brushActive=true;
+  if(canvas){
+    if(brushActive){
+      canvas.classList.add("active");
+      document.getElementById("brushHint").classList.add("on");
+    }else{
+      canvas.classList.remove("active");
+      document.getElementById("brushHint").classList.remove("on");
+      isD=false;
+    }
+  }
+  if(brushActive) toast("画笔已启用，在图片上涂抹水印区域");
+  else toast("画笔已关闭");
+});
+
+// 画笔事件 - 用pointer events统一处理鼠标+触摸
+function getBrushSize(){return Math.max(3,parseInt(document.getElementById("brSz").value)*1.5)}
+function getCanvasPos(cvs,clientX,clientY){
+  var r=cvs.getBoundingClientRect();
+  return {
+    x:(clientX-r.left)*(cvs.width/r.width),
+    y:(clientY-r.top)*(cvs.height/r.height)
+  };
+}
+function handleBrushStart(cvs,clientX,clientY){
+  if(!brushActive||!cvs) return;
+  var pos=getCanvasPos(cvs,clientX,clientY);
+  // 检查是否在图片范围内
+  if(pos.x<0||pos.x>cvs.width||pos.y<0||pos.y>cvs.height) return;
+  isD=true;
+  var sz=getBrushSize();
+  brushPts.push({x:pos.x,y:pos.y});
+  ctx.beginPath();ctx.arc(pos.x,pos.y,sz,0,Math.PI*2);
+  ctx.fillStyle="rgba(108,92,231,0.5)";ctx.fill();
+}
+function handleBrushMove(cvs,clientX,clientY){
+  if(!isD||!brushActive||!cvs) return;
+  var pos=getCanvasPos(cvs,clientX,clientY);
+  if(pos.x<0||pos.x>cvs.width||pos.y<0||pos.y>cvs.height) return;
+  var sz=getBrushSize();
+  brushPts.push({x:pos.x,y:pos.y});
+  ctx.beginPath();ctx.arc(pos.x,pos.y,sz,0,Math.PI*2);
+  ctx.fillStyle="rgba(108,92,231,0.5)";ctx.fill();
+}
+function handleBrushEnd(){isD=false}
+function redrawBrush(){
+  if(!ctx||!canvas) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  var sz=getBrushSize();
+  ctx.fillStyle="rgba(108,92,231,0.5)";
+  for(var i=0;i<brushPts.length;i++){
+    ctx.beginPath();ctx.arc(brushPts[i].x,brushPts[i].y,sz,0,Math.PI*2);ctx.fill();
+  }
+}
+
+// 鼠标事件
+document.addEventListener("DOMContentLoaded",function(){
+  var cvs=document.getElementById("imgC");
+  if(!cvs) return;
+  // Pointer Events统一处理鼠标+触摸
+  cvs.addEventListener("pointerdown",function(e){
+    e.preventDefault();
+    handleBrushStart(cvs,e.clientX,e.clientY);
+  });
+  cvs.addEventListener("pointermove",function(e){
+    e.preventDefault();
+    handleBrushMove(cvs,e.clientX,e.clientY);
+  });
+  cvs.addEventListener("pointerup",function(e){
+    e.preventDefault();
+    handleBrushEnd();
+  });
+  cvs.addEventListener("pointerleave",function(e){
+    handleBrushEnd();
+  });
+  // 触摸滚动不干扰
+  cvs.addEventListener("touchstart",function(e){if(brushActive)e.preventDefault()},{passive:false});
+  cvs.addEventListener("touchmove",function(e){if(brushActive)e.preventDefault()},{passive:false});
+});
+
+// 画笔大小滑块
+document.getElementById("brSz").addEventListener("input",function(){
+  document.getElementById("brVal").textContent=this.value+"px";
+  if(canvas&&brushPts.length>0) redrawBrush();
+});
+
+// 其他工具
+function setBrushActive(v){
+  brushActive=v;
+  if(canvas){
+    if(v){canvas.classList.add("active");document.getElementById("brushHint").classList.add("on")}
+    else{canvas.classList.remove("active");document.getElementById("brushHint").classList.remove("on")}
+  }
+  if(!v) isD=false;
+}
+
+// API请求
+async function imgApi(path,body){
+  setSt("imgSt","处理中...","inf");
+  document.getElementById("imgSp2").style.display="block";
+  try{
+    var r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:body});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error||"处理失败");
+    document.getElementById("imgR").src=window.location.origin+j.path;
+    document.getElementById("dlBtn").style.display="inline-block";
+    document.getElementById("resetBtn").style.display="inline-block";
+    document.getElementById("dlBtn").onclick=function(){dl(j.path,j.filename)};
+    hideSt("imgSt");toast("完成");
+  }catch(e){setSt("imgSt","失败: "+e.message,"err")}
+  finally{document.getElementById("imgSp2").style.display="none"}
+}
+function mkBody(p){
+  var sp=new URLSearchParams();
+  sp.append("filename",imgFileName);
+  Object.keys(p).forEach(function(k){sp.append(k,p[k])});
+  return sp.toString();
+}
+function setSt(id,m,t){
+  var s=document.getElementById(id);if(!s) return;
+  s.textContent=m;s.className="st "+t;
+}
+function hideSt(id){
+  var s=document.getElementById(id);if(s)s.className="st";
+}
+
+// 下载
+function dl(fp,fn){
+  var url=window.location.origin+fp;
+  if(navigator.share&&/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){
+    // 移动端：通过fetch下载再分享
+    fetch(url).then(function(r){return r.blob()}).then(function(b){
+      var ext=(fn||"download").split(".").pop().toLowerCase();
+      var mime={mp4:"video/mp4",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",mp3:"audio/mpeg",wav:"audio/wav"}[ext]||b.type;
+      var f=new File([b],fn||"download",{type:mime});
+      navigator.share({files:[f],title:fn}).catch(function(){_fallbackDl(url,fn)})
+    }).catch(function(){_fallbackDl(url,fn)})
+  }else{
+    _fallbackDl(url,fn)
+  }
+}
+function _fallbackDl(url,fn){
+  var a=document.createElement("a");
+  a.href=url;a.download=fn||"download";a.style.display="none";
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a)},1000);
+}
+function resetUpload(){
+  imgFileName=null;brushPts=[];brushActive=false;isD=false;
+  document.getElementById("imgP").src="";
+  document.getElementById("imgR").src="";
+  document.getElementById("imgEditSection").style.display="none";
+  document.getElementById("stPanel").style.display="none";
+  document.getElementById("dlBtn").style.display="none";
+  document.getElementById("resetBtn").style.display="none";
+  document.getElementById("uploadSection").style.display="block";
+  document.getElementById("imgUpload").value="";
+  hideSt("imgSt");
+  if(canvas&&ctx){ctx.clearRect(0,0,canvas.width,canvas.height);canvas.classList.remove("active");document.getElementById("brushHint").classList.remove("on")}
+}
+
+// 一键去水印
+document.getElementById("autoBtn").addEventListener("click",function(){
+  if(!imgFileName) return toast("请先上传图片");
+  imgApi("/api/inpaint",mkBody({use_auto:"true",radius:"5"}))
+});
+
+// 涂抹去水印
+document.getElementById("brGo").addEventListener("click",function(){
+  if(!imgFileName) return toast("请先上传图片");
+  if(!brushPts.length) return toast("请先用画笔涂抹水印区域");
+  imgApi("/api/inpaint",mkBody({
+    points_json:JSON.stringify(brushPts),
+    brush_radius:document.getElementById("brSz").value
+  }))
+});
+
+// 短视频解析
+document.getElementById("urlBtn").addEventListener("click",async function(){
+  var input=document.getElementById("urlInput").value.trim();
+  if(!input) return toast("请输入视频链接");
+  setSt("urlSt","解析中...","inf");
+  try{
+    var r=await fetch("/api/video/parse",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"url="+encodeURIComponent(input)});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error||"解析失败");
+    if(!j.success) throw new Error(j.error||"解析失败");
+    document.getElementById("urlResult").classList.add("on");
+    var videoUrl=j.url||j.video_url;
+    document.getElementById("urlVideo").src="/api/video/stream?url="+encodeURIComponent(videoUrl);
+    document.getElementById("urlTitle").textContent=j.title||"";
+    document.getElementById("urlDuration").textContent=j.duration?"时长: "+j.duration:"";
+    document.getElementById("urlPlatform").textContent=j.platform?"来源: "+j.platform:"";
+    document.getElementById("urlDlBtn").onclick=function(){
+      var vu=j.url||j.video_url;
+      dl("/api/video/stream?url="+encodeURIComponent(vu), (j.title||"video")+".mp4");
+    };
+    // 自动播放
+    setTimeout(function(){
+      var v=document.getElementById("urlVideo");
+      v.play().catch(function(){});
+    },500);
+    hideSt("urlSt");toast("解析成功");
+  }catch(e){
+    setSt("urlSt","解析失败: "+(e.message||"未知错误"),"err");
+  }
+});
+
+// 格式转换
+function triggerConv(){document.getElementById("convFile").click()}
+document.getElementById("convDrop").addEventListener("click",triggerConv);
+document.getElementById("convDrop").addEventListener("touchend",function(e){e.preventDefault();triggerConv()});
+document.getElementById("convFile").addEventListener("change",function(e){
+  var f=e.target.files[0];
+  if(f) toast("已选择: "+f.name);
+});
+document.getElementById("convBtn").addEventListener("click",async function(){
+  var f=document.getElementById("convFile").files[0];
+  var fmt=document.getElementById("convFmt").value;
+  if(!f) return toast("请先选择文件");
+  if(!fmt) return toast("请选择转换格式");
+  var fd=new FormData();fd.append("file",f);fd.append("format",fmt);
+  setSt("convSt","转换中...","inf");
+  try{
+    var r=await fetch("/api/convert",{method:"POST",body:fd});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error);
+    var url=window.location.origin+j.path;
+    document.getElementById("convR").src=url;document.getElementById("convR").style.display="block";
+    var d=document.getElementById("convDl");
+    d.innerHTML="<a href=\""+url+"\" download=\""+j.filename+"\" style=\"display:block;padding:10px;color:#e74c3c;text-align:center;text-decoration:none\">⬇ 下载 "+j.filename+"</a>";
+    d.style.display="block";
+    hideSt("convSt");toast("转换完成");
+  }catch(e){setSt("convSt","失败: "+e.message,"err")}
+});
+</script></body></html>
+

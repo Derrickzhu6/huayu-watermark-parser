@@ -1,0 +1,13 @@
+venv
+__pycache__
+.git
+.gitignore
+*.pyc
+node_modules
+.DS_Store
+logs/*
+uploads/*
+results/*
+!logs/.gitkeep
+!uploads/.gitkeep
+!results/.gitkeep

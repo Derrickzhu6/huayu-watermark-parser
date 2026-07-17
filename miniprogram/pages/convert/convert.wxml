@@ -1,0 +1,31 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">文件格式转换</view>
+    <view class="card-desc">支持图片、视频、音频、文件格式互转</view>
+
+    <view class="type-tabs">
+      <view class="type-tab {{type==='image'?'active':''}}" bindtap="switchType" data-type="image">图片</view>
+      <view class="type-tab {{type==='video'?'active':''}}" bindtap="switchType" data-type="video">视频</view>
+      <view class="type-tab {{type==='audio'?'active':''}}" bindtap="switchType" data-type="audio">音频</view>
+      <view class="type-tab {{type==='file'?'active':''}}" bindtap="switchType" data-type="file">文件</view>
+    </view>
+
+    <button class="btn-upload" bindtap="onChooseFile">选择文件</button>
+    <view class="file-info" wx:if="{{fileName}}">已选择: {{fileName}}</view>
+
+    <picker class="format-picker" mode="selector" range="{{formats}}" bindchange="onFormatChange">
+      <view class="picker-btn">转换至: {{targetFormat || '请选择格式'}}  ▾</view>
+    </picker>
+
+    <button class="btn-primary" bindtap="onConvert" loading="{{loading}}" disabled="{{!filePath || !targetFormat}}">
+      {{loading ? '转换中...' : '开始转换'}}
+    </button>
+
+    <view wx:if="{{resultUrl}}" class="result-section">
+      <view class="result-info">转换完成: {{resultName}}</view>
+      <button class="btn-download" bindtap="onDownload">下载文件</button>
+    </view>
+  </view>
+
+  <view class="footer">文件转换在服务端完成，请耐心等待</view>
+</view>

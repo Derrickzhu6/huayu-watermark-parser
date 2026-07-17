@@ -1,0 +1,305 @@
+<script>
+function toast(m){var t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(function(){t.style.display="none"},2000)}
+function swTab(i){document.querySelectorAll(".tab,.tab-item").forEach(function(e){e.classList.remove("active")});document.getElementById("tab"+i).classList.add("active");document.querySelectorAll(".tab-item")[i-1].classList.add("active")}
+
+var imgFileName=null,brushPts=[],brushActive=false,isD=false,canvas=null,ctx=null;
+
+// 上传照片
+document.getElementById("uploadLabel").addEventListener("click",function(){document.getElementById("imgUpload").click()});
+document.getElementById("imgUpload").addEventListener("change",async function(e){
+  var f=e.target.files[0];if(!f)return;
+  var fd=new FormData();fd.append("file",f);
+  setSt("imgSt","上传中...","inf");
+  try{
+    var r=await fetch("/api/upload",{method:"POST",body:fd});var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error);
+    imgFileName=j.filename;
+    document.getElementById("imgP").src=window.location.origin+j.path;
+    document.getElementById("imgEditSection").style.display="block";
+    document.getElementById("stPanel").style.display="block";
+    document.getElementById("uploadSection").style.display="none";
+    brushPts=[];brushActive=false;isD=false;
+    hideSt("imgSt");
+    setTimeout(setupCanvas,100);
+  }catch(e){setSt("imgSt","上传失败: "+e.message,"err")}
+});
+
+// 画布初始化
+function setupCanvas(){
+  var img=document.getElementById("imgP");
+  if(img.complete&&img.naturalWidth>0){_resizeCanvas()}
+  else{img.onload=_resizeCanvas;if(img.complete)_resizeCanvas()}
+}
+function _resizeCanvas(){
+  canvas=document.getElementById("imgC");
+  if(!canvas||!canvas.getContext) return;
+  ctx=canvas.getContext("2d");
+  var img=document.getElementById("imgP");
+  var nw=img.naturalWidth,nh=img.naturalHeight;
+  canvas.width=nw;canvas.height=nh;
+  // canvas size = img display size
+  canvas.style.width=img.clientWidth+"px";
+  canvas.style.height=img.clientHeight+"px";
+  // clear
+  ctx.clearRect(0,0,nw,nh);
+  // redraw existing points
+  if(brushPts.length>0) redrawBrush();
+}
+
+// 涂抹修复工具切换
+document.getElementById("tBrush").addEventListener("click",function(){
+  document.querySelectorAll(".tool-btn").forEach(function(b){b.classList.remove("active")});
+  this.classList.add("active");
+  brushActive=!brushActive;
+  if(canvas){
+    if(brushActive){
+      canvas.classList.add("active");
+      document.getElementById("brushHint").classList.add("on");
+    }else{
+      canvas.classList.remove("active");
+      document.getElementById("brushHint").classList.remove("on");
+      isD=false;
+    }
+  }
+  if(brushActive) toast("画笔已启用，在图片上涂抹水印区域");
+  else toast("画笔已关闭");
+});
+
+// 画笔事件 - 用pointer events统一处理鼠标+触摸
+function getBrushSize(){return Math.max(3,parseInt(document.getElementById("brSz").value)*1.5)}
+function getCanvasPos(cvs,clientX,clientY){
+  var r=cvs.getBoundingClientRect();
+  return {
+    x:(clientX-r.left)*(cvs.width/r.width),
+    y:(clientY-r.top)*(cvs.height/r.height)
+  };
+}
+function handleBrushStart(cvs,clientX,clientY){
+  if(!brushActive||!cvs) return;
+  var pos=getCanvasPos(cvs,clientX,clientY);
+  // 检查是否在图片范围内
+  if(pos.x<0||pos.x>cvs.width||pos.y<0||pos.y>cvs.height) return;
+  isD=true;
+  var sz=getBrushSize();
+  brushPts.push({x:pos.x,y:pos.y});
+  ctx.beginPath();ctx.arc(pos.x,pos.y,sz,0,Math.PI*2);
+  ctx.fillStyle="rgba(108,92,231,0.5)";ctx.fill();
+}
+function handleBrushMove(cvs,clientX,clientY){
+  if(!isD||!brushActive||!cvs) return;
+  var pos=getCanvasPos(cvs,clientX,clientY);
+  if(pos.x<0||pos.x>cvs.width||pos.y<0||pos.y>cvs.height) return;
+  var sz=getBrushSize();
+  brushPts.push({x:pos.x,y:pos.y});
+  ctx.beginPath();ctx.arc(pos.x,pos.y,sz,0,Math.PI*2);
+  ctx.fillStyle="rgba(108,92,231,0.5)";ctx.fill();
+}
+function handleBrushEnd(){isD=false}
+function redrawBrush(){
+  if(!ctx||!canvas) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  var sz=getBrushSize();
+  ctx.fillStyle="rgba(108,92,231,0.5)";
+  for(var i=0;i<brushPts.length;i++){
+    ctx.beginPath();ctx.arc(brushPts[i].x,brushPts[i].y,sz,0,Math.PI*2);ctx.fill();
+  }
+}
+
+// 鼠标事件
+document.addEventListener("DOMContentLoaded",function(){
+  var cvs=document.getElementById("imgC");
+  if(!cvs) return;
+  // Pointer Events统一处理鼠标+触摸
+  cvs.addEventListener("pointerdown",function(e){
+    e.preventDefault();
+    handleBrushStart(cvs,e.clientX,e.clientY);
+  });
+  cvs.addEventListener("pointermove",function(e){
+    e.preventDefault();
+    handleBrushMove(cvs,e.clientX,e.clientY);
+  });
+  cvs.addEventListener("pointerup",function(e){
+    e.preventDefault();
+    handleBrushEnd();
+  });
+  cvs.addEventListener("pointerleave",function(e){
+    handleBrushEnd();
+  });
+  // 触摸滚动不干扰
+  cvs.addEventListener("touchstart",function(e){if(brushActive)e.preventDefault()},{passive:false});
+  cvs.addEventListener("touchmove",function(e){if(brushActive)e.preventDefault()},{passive:false});
+});
+
+// 画笔大小滑块
+document.getElementById("brSz").addEventListener("input",function(){
+  document.getElementById("brVal").textContent=this.value+"px";
+  if(canvas&&brushPts.length>0) redrawBrush();
+});
+
+// 其他工具
+document.getElementById("tText").addEventListener("click",async function(){
+  if(!imgFileName) return toast("请先上传图片");
+  setBrushActive(false);
+  imgApi("/api/remove-text",mkBody({threshold:40}))
+});
+document.getElementById("tFreq").addEventListener("click",async function(){
+  if(!imgFileName) return toast("请先上传图片");
+  setBrushActive(false);
+  imgApi("/api/frequency",mkBody({sigma:15}))
+});
+document.getElementById("tColor").addEventListener("click",async function(){
+  if(!imgFileName) return toast("请先上传图片");
+  setBrushActive(false);
+  imgApi("/api/remove-color",mkBody({}))
+});
+document.getElementById("tBright").addEventListener("click",async function(){
+  if(!imgFileName) return toast("请先上传图片");
+  setBrushActive(false);
+  imgApi("/api/remove-alpha",mkBody({}))
+});
+function setBrushActive(v){
+  brushActive=v;
+  if(canvas){
+    if(v){canvas.classList.add("active");document.getElementById("brushHint").classList.add("on")}
+    else{canvas.classList.remove("active");document.getElementById("brushHint").classList.remove("on")}
+  }
+  if(!v) isD=false;
+}
+
+// API请求
+async function imgApi(path,body){
+  setSt("imgSt","处理中...","inf");
+  document.getElementById("imgSp2").style.display="block";
+  try{
+    var r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:body});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error||"处理失败");
+    document.getElementById("imgR").src=window.location.origin+j.path;
+    document.getElementById("dlBtn").style.display="inline-block";
+    document.getElementById("resetBtn").style.display="inline-block";
+    document.getElementById("dlBtn").onclick=function(){dl(j.path,j.filename)};
+    hideSt("imgSt");toast("完成");
+  }catch(e){setSt("imgSt","失败: "+e.message,"err")}
+  finally{document.getElementById("imgSp2").style.display="none"}
+}
+function mkBody(p){
+  var sp=new URLSearchParams();
+  sp.append("filename",imgFileName);
+  Object.keys(p).forEach(function(k){sp.append(k,p[k])});
+  return sp.toString();
+}
+function setSt(id,m,t){
+  var s=document.getElementById(id);if(!s) return;
+  s.textContent=m;s.className="st "+t;
+}
+function hideSt(id){
+  var s=document.getElementById(id);if(s)s.className="st";
+}
+
+// 下载
+function dl(fp,fn){
+  var url=window.location.origin+fp;
+  if(navigator.share&&/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){
+    // 移动端：通过fetch下载再分享
+    fetch(url).then(function(r){return r.blob()}).then(function(b){
+      var ext=(fn||"download").split(".").pop().toLowerCase();
+      var mime={mp4:"video/mp4",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",mp3:"audio/mpeg",wav:"audio/wav"}[ext]||b.type;
+      var f=new File([b],fn||"download",{type:mime});
+      navigator.share({files:[f],title:fn}).catch(function(){_fallbackDl(url,fn)})
+    }).catch(function(){_fallbackDl(url,fn)})
+  }else{
+    _fallbackDl(url,fn)
+  }
+}
+function _fallbackDl(url,fn){
+  var a=document.createElement("a");
+  a.href=url;a.download=fn||"download";a.style.display="none";
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a)},1000);
+}
+function resetUpload(){
+  imgFileName=null;brushPts=[];brushActive=false;isD=false;
+  document.getElementById("imgP").src="";
+  document.getElementById("imgR").src="";
+  document.getElementById("imgEditSection").style.display="none";
+  document.getElementById("stPanel").style.display="none";
+  document.getElementById("dlBtn").style.display="none";
+  document.getElementById("resetBtn").style.display="none";
+  document.getElementById("uploadSection").style.display="block";
+  document.getElementById("imgUpload").value="";
+  hideSt("imgSt");
+  if(canvas&&ctx){ctx.clearRect(0,0,canvas.width,canvas.height);canvas.classList.remove("active");document.getElementById("brushHint").classList.remove("on")}
+}
+
+// 一键去水印
+document.getElementById("autoBtn").addEventListener("click",function(){
+  if(!imgFileName) return toast("请先上传图片");
+  imgApi("/api/inpaint",mkBody({use_auto:"true",radius:"5"}))
+});
+
+// 涂抹去水印
+document.getElementById("brGo").addEventListener("click",function(){
+  if(!imgFileName) return toast("请先上传图片");
+  if(!brushPts.length) return toast("请先用画笔涂抹水印区域");
+  imgApi("/api/inpaint",mkBody({
+    points_json:JSON.stringify(brushPts),
+    brush_radius:document.getElementById("brSz").value
+  }))
+});
+
+// 短视频解析
+document.getElementById("urlBtn").addEventListener("click",async function(){
+  var input=document.getElementById("urlInput").value.trim();
+  if(!input) return toast("请输入视频链接");
+  setSt("urlSt","解析中...","inf");
+  try{
+    var r=await fetch("/api/video/parse",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"url="+encodeURIComponent(input)});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error||"解析失败");
+    if(!j.success) throw new Error(j.error||"解析失败");
+    document.getElementById("urlResult").classList.add("on");
+    var videoUrl=j.url||j.video_url;
+    document.getElementById("urlVideo").src="/api/video/stream?url="+encodeURIComponent(videoUrl);
+    document.getElementById("urlTitle").textContent=j.title||"";
+    document.getElementById("urlDuration").textContent=j.duration?"时长: "+j.duration:"";
+    document.getElementById("urlPlatform").textContent=j.platform?"来源: "+j.platform:"";
+    document.getElementById("urlDlBtn").onclick=function(){
+      var vu=j.url||j.video_url;
+      dl("/api/video/stream?url="+encodeURIComponent(vu), (j.title||"video")+".mp4");
+    };
+    // 自动播放
+    setTimeout(function(){
+      var v=document.getElementById("urlVideo");
+      v.play().catch(function(){});
+    },500);
+    hideSt("urlSt");toast("解析成功");
+  }catch(e){
+    setSt("urlSt","解析失败: "+(e.message||"未知错误"),"err");
+  }
+});
+
+// 格式转换
+document.getElementById("convDrop").addEventListener("click",function(){document.getElementById("convFile").click()});
+document.getElementById("convFile").addEventListener("change",function(e){
+  var f=e.target.files[0];
+  if(f) toast("已选择: "+f.name);
+});
+document.getElementById("convBtn").addEventListener("click",async function(){
+  var f=document.getElementById("convFile").files[0];
+  var fmt=document.getElementById("convFmt").value;
+  if(!f) return toast("请先选择文件");
+  if(!fmt) return toast("请选择转换格式");
+  var fd=new FormData();fd.append("file",f);fd.append("format",fmt);
+  setSt("convSt","转换中...","inf");
+  try{
+    var r=await fetch("/api/convert",{method:"POST",body:fd});
+    var j=await r.json();
+    if(!r.ok) throw new Error(j.detail||j.error);
+    var url=window.location.origin+j.path;
+    document.getElementById("convR").src=url;document.getElementById("convR").style.display="block";
+    var d=document.getElementById("convDl");
+    d.innerHTML="<a href=\""+url+"\" download=\""+j.filename+"\" style=\"display:block;padding:10px;color:#6c5ce7;text-align:center;text-decoration:none\">⬇ 下载 "+j.filename+"</a>";
+    d.style.display="block";
+    hideSt("convSt");toast("转换完成");
+  }catch(e){setSt("convSt","失败: "+e.message,"err")}
+});

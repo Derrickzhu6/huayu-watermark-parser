@@ -1,0 +1,27 @@
+<view class="container">
+  <view class="card">
+    <view class="card-title">图片去水印</view>
+    <view class="card-desc">上传图片后一键去水印，或用画笔涂抹指定区域</view>
+    
+    <button class="btn-upload" bindtap="onChooseImage" wx:if="{{!image}}">添加照片</button>
+    <image wx:if="{{image}}" src="{{image}}" class="preview" mode="widthFix"></image>
+    
+    <view wx:if="{{image}}" class="tools">
+      <button class="btn-primary" bindtap="onAutoInpaint" loading="{{autoLoading}}">{{autoLoading ? '处理中...' : '一键去水印'}}</button>
+      <view class="brush-section" wx:if="{{image}}">
+        <button class="btn-secondary" bindtap="onToggleBrush">{{brushMode ? '关闭画笔' : '涂抹修复'}}</button>
+        <view class="brush-hint" wx:if="{{brushMode}}">手指涂抹水印区域，然后点"开始修复"</view>
+        <canvas canvas-id="brushCanvas" class="brush-canvas" wx:if="{{brushMode}}" bindtouchstart="onBrushStart" bindtouchmove="onBrushMove" bindtouchend="onBrushEnd"></canvas>
+        <button class="btn-primary" wx:if="{{brushMode && brushPoints.length}}" bindtap="onBrushInpaint">开始修复</button>
+      </view>
+    </view>
+    
+    <view wx:if="{{resultImage}}" class="result-section">
+      <image src="{{resultImage}}" class="preview" mode="widthFix"></image>
+      <button class="btn-download" bindtap="onSaveImage">保存到相册</button>
+      <button class="btn-secondary" bindtap="onReset">重新选择</button>
+    </view>
+  </view>
+  
+  <view class="footer">图片不会被上传到服务器，仅本地处理</view>
+</view>

@@ -1,0 +1,4 @@
+id="imgUp"><div class="ic">🖼</div><div class="t">添加照片</div><div class="s">点击选择或拖拽图片</div><input type="file" id="imgFi" accept="image/*" hidden></div>
+    <div class="layout" id="imgLay">
+      <div class="panel"><div class="panel-hd"><span>原图</span></div><div class="panel-bd"><img id="imgO"><canvas id="imgC"></canvas><div class="spin" id="imgSp"></div></div></div>
+      <div class="panel"><div class="panel-hd"><span>结果</span><button class="btn-sm g" id="dlBtn" style="display:none;padding:4px 10p

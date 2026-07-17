@@ -1,0 +1,7 @@
+n fd});
+setupConv("cVidZ","cVidI","cVidGo","/api/convert/video",function(f){var fd=new FormData();fd.append("file",f);fd.append("target_format",document.getElementById("cVidF").value);fd.append("quality",document.getElementById("cVidQ").value);return fd});
+setupConv("cAudZ","cAudI","cAudGo","/api/convert/audio",function(f){var fd=new FormData();fd.append("file",f);fd.append("target_format",document.getElementById("cAudF").value);fd.append("quality",document.getElementById("cAudQ").value);return fd});
+setupConv("fEncZ","fEncI","fEncGo","/api/convert/file-encoding",function(f){var fd=new FormData();fd.append("file",f);fd.append("source_encoding",document.getElementById("srcEnc").value);fd.append("target_encoding",document.getElementById("tgtEnc").value);return fd});
+</script>
+</body>
+</html>
