@@ -2,9 +2,9 @@
 function getServerUrl() {
   try {
     var app = getApp();
-    return app.globalData.serverUrl || "http://localhost:8000";
+    return app.globalData.serverUrl || "https://huayu-parser-283531-10-1455208732.sh.run.tcloudbase.com";
   } catch(e) {
-    return "http://localhost:8000";
+    return "https://huayu-parser-283531-10-1455208732.sh.run.tcloudbase.com";
   }
 }
 
