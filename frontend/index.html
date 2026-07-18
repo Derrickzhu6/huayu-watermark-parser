@@ -57,7 +57,7 @@ select:focus{border-color:#e74c3c}
     <input type="file" id="imgUpload" accept="image/*" style="display:none">
   </div>
   <div id="imgEditSection" style="display:none">
-    <div class="panel-header"><span>原图</span><button class="btn-download" id="resetBtn" style="display:none;background:#636e72" onclick="resetUpload()">↩ 重选</button></div>
+    <div class="panel-header"><span>原图</span><button class="btn-download" id="resetBtn" style="display:inline-block;background:#636e72" onclick="resetUpload()">↩ 重选</button></div>
     <div class="panel-body"><div id="imgWrapper"><img id="imgP"><canvas id="imgC"></canvas><div class="brush-hint" id="brushHint">✏️ 涂抹水印区域</div></div></div>
     <div class="panel-header"><span>处理结果</span><button class="btn-download" id="dlBtn" style="display:none">⬇ 下载</button></div>
     <div class="panel-body"><img id="imgR"><div class="spin" id="imgSp2"></div></div>
@@ -145,7 +145,7 @@ document.getElementById("imgUpload").addEventListener("change",async function(e)
     if(!r.ok) throw new Error(j.detail||j.error);
     imgFileName=j.filename;
     document.getElementById("imgP").src=window.location.origin+j.path;
-    document.getElementById("imgEditSection").style.display="block";
+    document.getElementById("imgEditSection").style.display="block";document.getElementById("resetBtn").style.display="inline-block";
     document.getElementById("stPanel").style.display="block";
     document.getElementById("uploadSection").style.display="none";
     brushPts=[];brushActive=false;isD=false;

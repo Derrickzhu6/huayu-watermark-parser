@@ -88,52 +88,47 @@ def simple_inpaint(img, mask, radius=3):
     return _cv2.inpaint(img, m, radius, _cv2.INPAINT_TELEA)
 
 def _detect_text_watermark(img):
-    """极致保守检测：只在四角区域找小文字，绝不碰画面主体"""
+    """检测文字水印：梯度检测 + 形态学连接 + 组件过滤"""
     import cv2 as _cv2
     import numpy as _np
     h, w = img.shape[:2]
     gray = _cv2.cvtColor(img, _cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+
+    # 计算梯度幅度（文字边缘明显）
+    gx = _cv2.Sobel(gray, _cv2.CV_32F, 1, 0, ksize=3)
+    gy = _cv2.Sobel(gray, _cv2.CV_32F, 0, 1, ksize=3)
+    mag = _cv2.magnitude(gx, gy).astype(_np.uint8)
+
+    # OTSU自适应阈值找到强边缘
+    _, edges = _cv2.threshold(mag, 0, 255, _cv2.THRESH_BINARY + _cv2.THRESH_OTSU)
+
+    # 形态学闭合连接文字笔画
+    k_close = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
+    mask = _cv2.morphologyEx(edges, _cv2.MORPH_CLOSE, k_close, iterations=2)
+
+    # 去掉孤立噪点
+    k_open = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (2, 2))
+    mask = _cv2.morphologyEx(mask, _cv2.MORPH_OPEN, k_open, iterations=1)
+
+    # 连通区域过滤
+    n, labels, stats, _ = _cv2.connectedComponentsWithStats(mask, 8)
     result = _np.zeros((h, w), dtype=_np.uint8)
+    min_a = max(8, int(h * w * 0.0003))
+    max_a = int(h * w * 0.04)
+    found = 0
+    for i in range(1, n):
+        area = stats[i, _cv2.CC_STAT_AREA]
+        bw = stats[i, _cv2.CC_STAT_WIDTH]
+        bh = stats[i, _cv2.CC_STAT_HEIGHT]
+        aspect = max(bw, bh) / _np.maximum(min(bw, bh), 1)
+        if min_a < area < max_a and aspect < 12:
+            result[labels == i] = 255
+            found += 1
 
-    # 四角区域（每角占宽25% x 高20%）
-    ch, cw = int(h * 0.20), int(w * 0.25)
-    corners = [
-        (0, 0, cw, ch),                          # 左上
-        (w - cw, 0, cw, ch),                      # 右上
-        (0, h - ch, cw, ch),                      # 左下
-        (w - cw, h - ch, cw, ch),                 # 右下
-    ]
-
-    for cx, cy, cw2, ch2 in corners:
-        roi = gray[cy:cy+ch2, cx:cx+cw2]
-        # 只在角落做自适应阈值
-        for bs, c in [(7, 2), (11, 3)]:
-            ti = _cv2.adaptiveThreshold(roi, 255, _cv2.ADAPTIVE_THRESH_MEAN_C,
-                                        _cv2.THRESH_BINARY_INV, bs, c)
-            tn = _cv2.adaptiveThreshold(roi, 255, _cv2.ADAPTIVE_THRESH_MEAN_C,
-                                        _cv2.THRESH_BINARY, bs, c)
-            combined = _cv2.bitwise_or(ti, tn)
-
-        # 连接文字笔画
-        k = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
-        combined = _cv2.morphologyEx(combined, _cv2.MORPH_CLOSE, k, iterations=1)
-
-        # 只保留极小区域（文字水印都是小字）
-        n, labels, stats, _ = _cv2.connectedComponentsWithStats(combined, 8)
-        min_a = max(5, int(h * w * 0.0001))
-        max_a = int(h * w * 0.015)
-        for i in range(1, n):
-            area = stats[i, _cv2.CC_STAT_AREA]
-            bw = stats[i, _cv2.CC_STAT_WIDTH]
-            bh = stats[i, _cv2.CC_STAT_HEIGHT]
-            if min_a < area < max_a:
-                if bw < bh * 6 and bh < bw * 6:
-                    result[labels == i] = 255
-
-    # 极少膨胀（只覆盖笔画边缘）
-    if _np.sum(result > 0) >= 5:
-        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (2, 2))
-        result = _cv2.dilate(result, kd, iterations=1)
+    # 膨胀覆盖完整笔画
+    if found > 0:
+        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
+        result = _cv2.dilate(result, kd, iterations=2)
 
     return result
 
@@ -372,14 +367,15 @@ class FastHandler(BaseHTTPRequestHandler):
                 if pixel_count < 10:
                     return self.send_error(400, "未检测到有效水印区域，请尝试画笔手动涂抹")
                 # 如果检测区域太大（超过25%），返回失败建议使用画笔
-                if mask_ratio > 0.25:
+                if mask_ratio > 0.30:
                     return self.send_error(400, "图片复杂度过高，请使用画笔手动涂抹水印区域")
                 proc_img, scale = _limit_resolution(img, 1080)
                 if scale < 1.0:
                     m = cv2.resize(mask, (proc_img.shape[1], proc_img.shape[0]), interpolation=cv2.INTER_NEAREST)
                 else:
                     m = mask
-                result = simple_inpaint(proc_img, m, radius=3)
+                lazy_import_ml()
+                result = improved_inpaint(proc_img, m, quality="quality")
                 if scale < 1.0:
                     result = cv2.resize(result, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
                 out_name = f"out_" + uuid.uuid4().hex + ".png"
@@ -401,7 +397,8 @@ class FastHandler(BaseHTTPRequestHandler):
             pixel_count = int(np.sum(mask > 0))
             if pixel_count < 10:
                 return self.send_error(400, "涂抹区域太小，请扩大涂抹范围")
-            result = simple_inpaint(img, mask, radius=max(3, min(radius, 10)))
+            lazy_import_ml()
+            result = improved_inpaint(img, mask, quality="quality")
             out_name = f"out_" + uuid.uuid4().hex + ".png"
             out_path = RESULT_DIR / out_name
             imwrite_unicode(out_path, result)

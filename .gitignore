@@ -15,3 +15,7 @@ processors/__pycache__/
 .git/
 
 miniprogram/project.private.config.json
+test_*.png
+debug_*.png
+_fix_*.py
+test_*.py
