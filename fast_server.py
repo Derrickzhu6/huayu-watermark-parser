@@ -670,9 +670,23 @@ def prewarm():
     except:
         pass
 
+
+def auto_download_lama():
+    import os, urllib.request
+    mp = os.path.join(os.path.dirname(__file__), 'processors', 'models', 'lama.onnx')
+    if not os.path.exists(mp):
+        os.makedirs(os.path.dirname(mp), exist_ok=True)
+        url = 'https://github.com/opencv/opencv_zoo/raw/main/models/inpainting_lama/inpainting_lama_2025jan.onnx'
+        print('[Server] Downloading LaMa model (88MB)...')
+        try:
+            urllib.request.urlretrieve(url, mp)
+            print('[Server] LaMa model downloaded')
+        except Exception as e:
+            print(f'[Server] LaMa download failed: {e}')
 def preload_models():
     """Preload heavy ML models on server startup"""
     print("[Server] Preloading ML models...")
+    auto_download_lama()
     try:
         from processors.improved_inpaint import improved_inpaint
         from processors.lama_inpaint import warmup, is_lama_available

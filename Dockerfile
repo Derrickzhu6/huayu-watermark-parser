@@ -27,11 +27,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 安装 Playwright 浏览器
-RUN python -m playwright install chromium && python -m playwright install-deps chromium
-
 # 复制代码
 COPY . .
 
 # 启动
+
+# Download LaMa AI inpainting model (88MB, needed for best quality inpainting)
+RUN python -c "import os,urllib.request; p='processors/models/lama.onnx'; urllib.request.urlretrieve('https://github.com/opencv/opencv_zoo/raw/main/models/inpainting_lama/inpainting_lama_2025jan.onnx', p) if not os.path.exists(p) else None"
+
 CMD ["python", "fast_server.py"]
