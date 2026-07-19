@@ -8,8 +8,7 @@
     <view wx:if="{{image}}" class="preview-wrap">
       <view class="image-canvas-wrap">
         <image id="mainImage" src="{{image}}" class="preview" mode="widthFix" bindload="onImageLoaded"></image>
-        <canvas canvas-id="brushCanvas" class="brush-overlay {{brushMode ? '' : 'hidden'}}"
-          width="{{canvasWidth}}" height="{{canvasHeight}}"
+        <canvas type="2d" id="brushCanvas" class="brush-overlay {{brushMode ? '' : 'hidden'}}"
           catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></canvas>
       </view>
       <view class="brush-tools" wx:if="{{brushMode}}">

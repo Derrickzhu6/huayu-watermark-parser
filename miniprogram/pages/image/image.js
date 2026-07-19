@@ -7,16 +7,16 @@ Page({
     resultImage: "", 
     brushMode: false, 
     processing: false, 
-    brushSize: 8,
-    canvasWidth: 300,
-    canvasHeight: 150
+    brushSize: 8
   },
   brushPts: [],
   canvasCtx: null,
+  canvasNode: null,
   imgRect: null,
   isDrawing: false,
   origImgWidth: 0,
   origImgHeight: 0,
+  canvasReady: false,
 
   onChooseImage() {
     const that = this;
@@ -28,24 +28,23 @@ Page({
           image: res.tempFilePaths[0], 
           resultImage: "", 
           brushMode: false, 
-          processing: false,
-          canvasWidth: 300,
-          canvasHeight: 150
+          processing: false
         });
         that.brushPts = [];
         that.canvasCtx = null;
+        that.canvasNode = null;
         that.imgRect = null;
         that.isDrawing = false;
         that.origImgWidth = 0;
         that.origImgHeight = 0;
+        that.canvasReady = false;
       }
     });
   },
 
-  // 图片加载后：获取原始尺寸 + 显示尺寸
   onImageLoaded() {
     const that = this;
-    // 1. 获取原始图片尺寸
+    // 1. 获取原图实际尺寸
     wx.getImageInfo({
       src: that.data.image,
       success: (info) => {
@@ -53,22 +52,40 @@ Page({
         that.origImgHeight = info.height;
       }
     });
-    // 2. 获取显示尺寸，设置 canvas 大小
+    // 2. 获取图片显示区域位置和尺寸
     setTimeout(() => {
       wx.createSelectorQuery().in(that)
         .select("#mainImage")
         .boundingClientRect((rect) => {
           if (rect && rect.width > 0 && rect.height > 0) {
-            const w = Math.round(rect.width);
-            const h = Math.round(rect.height);
-            that.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
-            that.setData({
-              canvasWidth: w,
-              canvasHeight: h
-            });
+            that.imgRect = { 
+              left: rect.left, top: rect.top, 
+              width: Math.round(rect.width), 
+              height: Math.round(rect.height) 
+            };
+            // 初始化 canvas 尺寸
+            that._initCanvas();
           }
         }).exec();
     }, 350);
+  },
+
+  _initCanvas() {
+    if (!this.imgRect || this.canvasReady) return;
+    const that = this;
+    wx.createSelectorQuery().in(that)
+      .select("#brushCanvas")
+      .fields({ node: true, size: true })
+      .exec((res) => {
+        if (!res || !res[0] || !res[0].node) return;
+        const canvas = res[0].node;
+        const ctx = canvas.getContext("2d");
+        canvas.width = that.imgRect.width;
+        canvas.height = that.imgRect.height;
+        that.canvasNode = canvas;
+        that.canvasCtx = ctx;
+        that.canvasReady = true;
+      });
   },
 
   onAutoInpaint() {
@@ -92,41 +109,38 @@ Page({
     this.isDrawing = false;
     if (m) {
       const that = this;
-      // 确保 imgRect 存在（用 canvas 尺寸兜底）
-      if (!that.imgRect || that.data.canvasWidth <= 10) {
+      // 确保 canvas 已就绪
+      if (!that.canvasReady) {
         wx.createSelectorQuery().in(that)
           .select("#mainImage")
           .boundingClientRect((rect) => {
             if (rect && rect.width > 0 && rect.height > 0) {
-              const w = Math.round(rect.width);
-              const h = Math.round(rect.height);
-              that.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
-              that.setData({ canvasWidth: w, canvasHeight: h });
+              that.imgRect = { 
+                left: rect.left, top: rect.top, 
+                width: Math.round(rect.width), 
+                height: Math.round(rect.height) 
+              };
+              that._initCanvas();
             }
           }).exec();
       }
-      // 等 setData 渲染完成后创建 canvas 上下文
-      setTimeout(() => {
-        if (that.canvasCtx) return;
-        that.canvasCtx = wx.createCanvasContext("brushCanvas", that);
-        that.canvasCtx.setStrokeStyle("#e74c3c");
-        that.canvasCtx.setLineWidth(that.data.brushSize);
-        that.canvasCtx.setLineCap("round");
-        that.canvasCtx.setLineJoin("round");
-        // 清除旧画布
-        that.canvasCtx.clearRect(0, 0, that.data.canvasWidth, that.data.canvasHeight);
-        that.canvasCtx.draw();
-      }, 100);
+      // 清除旧画布
+      if (that.canvasCtx && that.canvasNode) {
+        that.canvasCtx.clearRect(0, 0, that.canvasNode.width, that.canvasNode.height);
+      }
     }
   },
 
   onBrushSizeChange(e) {
     this.setData({ brushSize: e.detail.value });
-    if (this.canvasCtx) this.canvasCtx.setLineWidth(e.detail.value);
   },
 
   onBrushStart(e) {
     if (!this.canvasCtx || !this.imgRect || !this.data.brushMode) return;
+    // 确保 canvas 已初始化
+    if (!this.canvasReady) this._initCanvas();
+    if (!this.canvasCtx) return;
+    
     this.isDrawing = true;
     const t = e.touches[0];
     const x = t.x - this.imgRect.left;
@@ -134,12 +148,17 @@ Page({
     const px = Math.round(x);
     const py = Math.round(y);
     this.brushPts = [{ x: px, y: py }];
-    // 在起点画一个点
-    this.canvasCtx.beginPath();
-    this.canvasCtx.arc(px, py, this.data.brushSize / 2, 0, 2 * Math.PI);
-    this.canvasCtx.fillStyle = "#e74c3c";
-    this.canvasCtx.fill();
-    this.canvasCtx.draw(true);
+    
+    // Canvas 2D 绘制
+    const ctx = this.canvasCtx;
+    ctx.beginPath();
+    ctx.strokeStyle = "#e74c3c";
+    ctx.lineWidth = this.data.brushSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.moveTo(px, py);
+    ctx.lineTo(px + 0.1, py + 0.1);
+    ctx.stroke();
   },
 
   onBrushMove(e) {
@@ -151,11 +170,16 @@ Page({
     const py = Math.round(y);
     const prev = this.brushPts[this.brushPts.length - 1];
     this.brushPts.push({ x: px, y: py });
-    this.canvasCtx.beginPath();
-    this.canvasCtx.moveTo(prev.x, prev.y);
-    this.canvasCtx.lineTo(px, py);
-    this.canvasCtx.stroke();
-    this.canvasCtx.draw(true);
+    
+    const ctx = this.canvasCtx;
+    ctx.beginPath();
+    ctx.strokeStyle = "#e74c3c";
+    ctx.lineWidth = this.data.brushSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(px, py);
+    ctx.stroke();
   },
 
   onBrushEnd() { 
@@ -169,11 +193,11 @@ Page({
     }
     if (this.data.processing) return;
     
-    // ===== 核心修复：坐标缩放到原图尺寸 =====
+    // 坐标缩放到原图尺寸
     let scaleX = 1, scaleY = 1;
-    if (this.origImgWidth > 0 && this.data.canvasWidth > 0) {
-      scaleX = this.origImgWidth / this.data.canvasWidth;
-      scaleY = this.origImgHeight / this.data.canvasHeight;
+    if (this.origImgWidth > 0 && this.imgRect && this.imgRect.width > 0) {
+      scaleX = this.origImgWidth / this.imgRect.width;
+      scaleY = this.origImgHeight / this.imgRect.height;
     }
     const scaledPts = this.brushPts.map(pt => ({
       x: Math.round(pt.x * scaleX),
@@ -204,12 +228,13 @@ Page({
 
   onReset() {
     this.setData({ 
-      image: "", resultImage: "", brushMode: false, processing: false,
-      canvasWidth: 300, canvasHeight: 150
+      image: "", resultImage: "", brushMode: false, processing: false
     });
     this.brushPts = [];
     this.canvasCtx = null;
+    this.canvasNode = null;
     this.imgRect = null;
     this.isDrawing = false;
+    this.canvasReady = false;
   }
 });
