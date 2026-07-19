@@ -10,9 +10,9 @@ Page({
     const that = this;
     wx.chooseImage({
       count: 1,
+      sizeType: ["original"],
       success: (res) => {
         const tempPath = res.tempFilePaths[0];
-        // 获取原图实际尺寸
         wx.getImageInfo({
           src: tempPath,
           success: (info) => {
@@ -37,6 +37,15 @@ Page({
       scaleX: origW / width,
       scaleY: origH / height
     });
+    // 刷新canvas位置缓存
+    this._refreshCanvasRect();
+  },
+  
+  _refreshCanvasRect() {
+    const that = this;
+    wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
+      if (rect) that.canvasRect = rect;
+    }).exec();
   },
 
   onAutoInpaint() {
@@ -67,6 +76,7 @@ Page({
         that.canvasCtx.setLineWidth(that.data.brushSize);
         that.canvasCtx.setLineCap("round");
         that.canvasCtx.setLineJoin("round");
+        that._refreshCanvasRect();
         that.setData({ brushReady: true });
       }, 300);
     }
@@ -95,11 +105,14 @@ Page({
     });
   },
 
-  async onBrushStart(e) {
+  onBrushStart(e) {
     if (!this.canvasCtx) return;
-    const pos = await this.getCanvasPos(e);
-    if (!pos) return;
-    this.brushPts = [{ x: pos.x, y: pos.y }];
+    this._refreshCanvasRect();
+    setTimeout(() => {
+      const pos = this.getCanvasPos(e);
+      if (!pos) return;
+      this.brushPts = [{ x: pos.x, y: pos.y }];
+    }, 30);
   },
   
   async onBrushMove(e) {
