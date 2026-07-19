@@ -30,7 +30,6 @@ Page({
       src: that.data.image,
       success: (info) => { that.origW = info.width; that.origH = info.height; }
     });
-    // 延迟查询坐标，等布局稳定
     setTimeout(() => { that._queryRect(); }, 500);
   },
 
@@ -83,8 +82,10 @@ Page({
     if (!this.rectReady || !this.data.brushMode) return;
     this.isDrawing = true;
     const t = e.touches[0];
-    const px = Math.round(t.x - this.imgRect.left);
-    const py = Math.round(t.y - this.imgRect.top);
+    const cx = t.clientX !== undefined ? t.clientX : t.x;
+    const cy = t.clientY !== undefined ? t.clientY : t.y;
+    const px = Math.round(cx - this.imgRect.left);
+    const py = Math.round(cy - this.imgRect.top);
     if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
     this.brushPts = [{ x: px, y: py }];
     this.setData({ brushDots: [{ x: px, y: py }] });
@@ -93,14 +94,15 @@ Page({
   onBrushMove(e) {
     if (!this.isDrawing || !this.rectReady) return;
     const t = e.touches[0];
-    const px = Math.round(t.x - this.imgRect.left);
-    const py = Math.round(t.y - this.imgRect.top);
+    const cx = t.clientX !== undefined ? t.clientX : t.x;
+    const cy = t.clientY !== undefined ? t.clientY : t.y;
+    const px = Math.round(cx - this.imgRect.left);
+    const py = Math.round(cy - this.imgRect.top);
     if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
     this.brushPts.push({ x: px, y: py });
-    if (this.brushPts.length % 3 === 0) {
-      this.data.brushDots.push({ x: px, y: py });
-      this.setData({ brushDots: this.data.brushDots });
-    }
+    // 关键修复：创建新数组，不能直接 push 到 data 上
+    const dots = this.data.brushDots.concat([{ x: px, y: py }]);
+    this.setData({ brushDots: dots });
   },
 
   onBrushEnd() { this.isDrawing = false; },
