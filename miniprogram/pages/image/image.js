@@ -30,11 +30,20 @@ Page({
     setTimeout(() => {
       wx.createSelectorQuery().in(that)
         .select(".image-wrap")
-        .boundingClientRect((rect) => {
+        .boundingClientRect()
+        .selectViewport().scrollOffset()
+        .exec((res) => {
+          const rect = res[0];
+          const scroll = res[1];
           if (rect && rect.width > 0) {
-            that.imgRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+            that.imgRect = {
+              left: rect.left + (scroll ? scroll.scrollLeft : 0),
+              top: rect.top + (scroll ? scroll.scrollTop : 0),
+              width: rect.width,
+              height: rect.height
+            };
           }
-        }).exec();
+        });
     }, 400);
   },
 
@@ -46,9 +55,18 @@ Page({
     if (m && !this.imgRect) {
       wx.createSelectorQuery().in(this)
         .select(".image-wrap")
-        .boundingClientRect((rect) => {
+        .boundingClientRect()
+        .selectViewport().scrollOffset()
+        .exec((res) => {
+          const rect = res[0];
+          const scroll = res[1];
           if (rect && rect.width > 0) {
-            this.imgRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+            this.imgRect = {
+              left: rect.left + (scroll ? scroll.scrollLeft : 0),
+              top: rect.top + (scroll ? scroll.scrollTop : 0),
+              width: rect.width,
+              height: rect.height
+            };
           }
         }).exec();
     }
