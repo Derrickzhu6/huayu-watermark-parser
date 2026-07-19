@@ -1,4 +1,4 @@
-const api = require("../../utils/api");
+﻿const api = require("../../utils/api");
 
 Page({
   data: { 
@@ -18,25 +18,17 @@ Page({
   origH: 0,
 
   onChooseImage() {
-    const that = this;
     wx.chooseImage({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        that.setData({ 
+        this.setData({ 
           image: res.tempFilePaths[0], 
-          resultImage: "", 
-          brushMode: false, 
-          processing: false,
-          canvasW: 300,
-          canvasH: 150
+          resultImage: "", brushMode: false, processing: false,
+          canvasW: 300, canvasH: 150
         });
-        that.brushPts = [];
-        that.ctx = null;
-        that.imgRect = null;
-        that.isDrawing = false;
-        that.origW = 0;
-        that.origH = 0;
+        this.brushPts = []; this.ctx = null; this.imgRect = null;
+        this.isDrawing = false; this.origW = 0; this.origH = 0;
       }
     });
   },
@@ -45,14 +37,16 @@ Page({
     const that = this;
     wx.getImageInfo({
       src: that.data.image,
-      success: (info) => {
-        that.origW = info.width;
-        that.origH = info.height;
-      }
+      success: (info) => { that.origW = info.width; that.origH = info.height; }
     });
+    that._getImageRect();
+  },
+
+  _getImageRect() {
+    const that = this;
     setTimeout(() => {
       wx.createSelectorQuery().in(that)
-        .select(".image-wrap")
+        .select("#mainImage")
         .boundingClientRect((rect) => {
           if (rect && rect.width > 0 && rect.height > 0) {
             const w = Math.round(rect.width);
@@ -77,22 +71,27 @@ Page({
       this.ctx.clearRect(0, 0, this.data.canvasW, this.data.canvasH);
       this.ctx.draw();
     }
-    // 如果还没拿到尺寸，再查
     if (m && !this.imgRect) {
-      wx.createSelectorQuery().in(this)
-        .select(".image-wrap")
-        .boundingClientRect((rect) => {
-          if (rect && rect.width > 0 && rect.height > 0) {
-            const w = Math.round(rect.width);
-            const h = Math.round(rect.height);
-            this.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
-            this.setData({ canvasW: w, canvasH: h });
-            if (!this.ctx) {
-              this.ctx = wx.createCanvasContext("brushCanvas", this);
+      setTimeout(() => {
+        wx.createSelectorQuery().in(this)
+          .select("#mainImage")
+          .boundingClientRect((rect) => {
+            if (rect && rect.width > 0 && rect.height > 0) {
+              const w = Math.round(rect.width);
+              const h = Math.round(rect.height);
+              this.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
+              this.setData({ canvasW: w, canvasH: h });
+              if (!this.ctx) {
+                this.ctx = wx.createCanvasContext("brushCanvas", this);
+              }
             }
-          }
-        }).exec();
+          }).exec();
+      }, 200);
     }
+  },
+
+  onBrushSizeChange(e) {
+    this.setData({ brushSize: e.detail.value });
   },
 
   onAutoInpaint() {
@@ -123,9 +122,9 @@ Page({
     this.ctx.setLineCap("round");
     this.ctx.setLineJoin("round");
     this.ctx.beginPath();
-    this.ctx.moveTo(px, py);
-    this.ctx.lineTo(px + 0.5, py + 0.5);
-    this.ctx.stroke();
+    this.ctx.arc(px, py, this.data.brushSize / 2, 0, 2 * Math.PI);
+    this.ctx.fillStyle = "#e74c3c";
+    this.ctx.fill();
     this.ctx.draw(true);
   },
 
@@ -160,12 +159,16 @@ Page({
     }
     const pts = this.brushPts.map(p => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy) }));
     this.setData({ processing: true });
+    wx.showLoading({ title: "处理中..." });
     api.uploadAndInpaint(this.data.image, {
       pointsJson: JSON.stringify(pts),
       brushRadius: String(Math.round(this.data.brushSize * Math.min(sx, sy)))
     }).then((res) => {
       this.setData({ resultImage: res.path, brushMode: false });
+      wx.hideLoading();
+      wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
+      wx.hideLoading();
       wx.showToast({ title: e.message || "处理失败", icon: "none" });
     }).finally(() => { this.setData({ processing: false }); });
   },
@@ -182,11 +185,7 @@ Page({
       image: "", resultImage: "", brushMode: false, processing: false,
       canvasW: 300, canvasH: 150
     });
-    this.brushPts = [];
-    this.ctx = null;
-    this.imgRect = null;
-    this.isDrawing = false;
-    this.origW = 0;
-    this.origH = 0;
+    this.brushPts = []; this.ctx = null; this.imgRect = null;
+    this.isDrawing = false; this.origW = 0; this.origH = 0;
   }
 });
