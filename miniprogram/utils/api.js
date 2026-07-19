@@ -114,4 +114,37 @@ function downloadAndSave(url) {
   });
 }
 
-module.exports = { parseVideo: parseVideo, uploadAndInpaint: uploadAndInpaint, convertFile: convertFile, downloadAndSave: downloadAndSave, getServerUrl: getServerUrl };
+
+function downloadVideo(videoUrl) {
+  const app = getApp();
+  return new Promise(function(resolve, reject) {
+    wx.request({
+      url: app.globalData.serverUrl + "/api/video/download",
+      method: "POST",
+      header: { "Content-Type": "application/x-www-form-urlencoded" },
+      data: "url=" + encodeURIComponent(videoUrl),
+      timeout: 60000,
+      success: function(res) {
+        if (res.data.path) {
+          var dlUrl = app.globalData.serverUrl + res.data.path;
+          wx.downloadFile({
+            url: dlUrl,
+            success: function(dlRes) {
+              wx.saveVideoToPhotosAlbum({
+                filePath: dlRes.tempFilePath,
+                success: function() { wx.showToast({ title: "已保存到相册" }); resolve(); },
+                fail: function() { reject(new Error("保存失败，请授权相册权限")); }
+              });
+            },
+            fail: function() { reject(new Error("下载失败")); }
+          });
+        } else {
+          reject(new Error(res.data.error || "下载失败"));
+        }
+      },
+      fail: function() { reject(new Error("网络错误")); }
+    });
+  });
+}
+
+module.exports = { parseVideo: parseVideo, uploadAndInpaint: uploadAndInpaint, convertFile: convertFile, downloadAndSave: downloadAndSave, downloadVideo: downloadVideo, getServerUrl: getServerUrl };

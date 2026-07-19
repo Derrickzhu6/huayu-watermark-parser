@@ -223,20 +223,20 @@ class FastHandler(BaseHTTPRequestHandler):
             self.handle_api_video()
         else:
             self.send_error(404, "Not Found")
-    
+
     def do_POST(self):
         path = self.path
         content_type = self.headers.get("Content-Type", "")
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length) if content_length > 0 else b""
-        
+
         if "multipart/form-data" in content_type:
             data = parse_multipart(body, content_type)
         elif "application/json" in content_type:
             data = json.loads(body.decode("utf-8"))
         else:
             data = parse_urlencoded(body)
-        
+
         if path == "/api/upload":
             self.handle_upload(data)
         elif path == "/api/inpaint":
@@ -257,7 +257,8 @@ class FastHandler(BaseHTTPRequestHandler):
             self.handle_convert_audio(data)
         elif path == "/api/convert/file-encoding":
             self.handle_convert_file_encoding(data)
-        elif path == "/api/convert":
+        elif path == "/api/video/download": return self.handle_video_download(form)
+        if path == "/api/convert":
             self.handle_convert_generic(data)
         elif path == "/api/video/parse" or path == "/api/parse_url":
             try:
@@ -266,7 +267,53 @@ class FastHandler(BaseHTTPRequestHandler):
                 self.send_json({"success": False, "error": "处理错误: " + str(_e)[:100]})
         else:
             self.send_error(404, "Not Found")
-    
+
+
+    def handle_video_download(self, data):
+        """代理下载视频，解决小程序无法直接下载第三方CDN视频的问题"""
+        import urllib.request
+        url = data.get("url", "")
+        if not url:
+            return self.send_error(400, "缺少视频链接")
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://www.douyin.com/"
+            })
+            r = urllib.request.urlopen(req, timeout=30)
+            video_data = r.read()
+            import uuid
+            ext = ".mp4"
+            out_name = f"video_{uuid.uuid4().hex}{ext}"
+            out_path = RESULT_DIR / out_name
+            out_path.write_bytes(video_data)
+            self.send_json({"path": f"/api/image/{out_name}", "filename": out_name})
+        except Exception as e:
+            self.send_error(500, f"下载失败: {str(e)[:100]}")
+
+
+    def handle_video_download(self, data):
+        """代理下载视频，解决小程序无法直接下载第三方CDN视频的问题"""
+        import urllib.request
+        import uuid
+        url = data.get("url", "")
+        if not url:
+            return self.send_error(400, "缺少视频链接")
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": "https://www.douyin.com/"
+            })
+            r = urllib.request.urlopen(req, timeout=30)
+            video_data = r.read()
+            ext = ".mp4"
+            out_name = f"video_{uuid.uuid4().hex}{ext}"
+            out_path = RESULT_DIR / out_name
+            out_path.write_bytes(video_data)
+            self.send_json({"path": f"/api/image/{out_name}", "filename": out_name})
+        except Exception as e:
+            self.send_error(500, f"下载失败: {str(e)[:100]}")
+
     def serve_frontend(self):
         idx = FRONTEND_DIR / "index.html"
         if idx.exists():
@@ -278,7 +325,7 @@ class FastHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
         else:
             self.send_json({"message": "Frontend not found"})
-    
+
     def send_json(self, data, status=200):
         content = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -287,10 +334,10 @@ class FastHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(content)
-    
+
     def send_error(self, code, message):
         self.send_json({"detail": message}, code)
-    
+
     def serve_image(self, filename):
         fpath = RESULT_DIR / filename
         if not fpath.exists():
@@ -306,7 +353,7 @@ class FastHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "public, max-age=3600")
         self.end_headers()
         self.wfile.write(content)
-    
+
     def serve_video_stream(self):
         from urllib.parse import urlparse, parse_qs
         qs = parse_qs(self.path.split("?")[1] if "?" in self.path else "")
@@ -328,7 +375,7 @@ class FastHandler(BaseHTTPRequestHandler):
                     self.wfile.write(chunk)
         except Exception as e:
             self.send_error(500, str(e))
-    
+
     def handle_upload(self, data):
         lazy_import_cv()
         file_data = data.get("file")
@@ -344,7 +391,7 @@ class FastHandler(BaseHTTPRequestHandler):
         save_path = UPLOAD_DIR / name
         save_path.write_bytes(content)
         self.send_json({"filename": name, "path": f"/api/image/{name}"})
-    
+
     def handle_inpaint(self, data):
         lazy_import_cv()
         filename = data.get("filename", "")
@@ -421,7 +468,7 @@ class FastHandler(BaseHTTPRequestHandler):
         out_path = RESULT_DIR / out_name
         imwrite_unicode(out_path, result)
         return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
-    
+
     def handle_frequency(self, data):
         lazy_import_ml()
         filename = data.get("filename", "")
@@ -436,7 +483,7 @@ class FastHandler(BaseHTTPRequestHandler):
         out_path = RESULT_DIR / out_name
         imwrite_unicode(out_path, result)
         return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
-    
+
     def handle_remove_color(self, data):
         lazy_import_ml()
         filename = data.get("filename", "")
@@ -452,7 +499,7 @@ class FastHandler(BaseHTTPRequestHandler):
         out_path = RESULT_DIR / out_name
         imwrite_unicode(out_path, result)
         return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
-    
+
     def handle_remove_alpha(self, data):
         lazy_import_ml()
         filename = data.get("filename", "")
@@ -467,7 +514,7 @@ class FastHandler(BaseHTTPRequestHandler):
         out_path = RESULT_DIR / out_name
         imwrite_unicode(out_path, result)
         return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
-    
+
     def handle_convert_image(self, data):
         lazy_import_convert()
         file_data = data.get("file")
@@ -487,7 +534,7 @@ class FastHandler(BaseHTTPRequestHandler):
             self.send_json({"path": f"/api/image/{out_name}", "filename": out_name})
         finally:
             os.unlink(tmp.name)
-    
+
     def handle_convert_video(self, data):
         lazy_import_convert()
         file_data = data.get("file")
@@ -505,7 +552,7 @@ class FastHandler(BaseHTTPRequestHandler):
             self.send_json({"path": f"/api/image/{out_name}", "filename": out_name})
         finally:
             os.unlink(tmp.name)
-    
+
     def handle_convert_audio(self, data):
         file_data = data.get("file")
         if not file_data or not isinstance(file_data, dict):
@@ -529,7 +576,7 @@ class FastHandler(BaseHTTPRequestHandler):
             self.send_error(500, str(e))
         finally:
             os.unlink(tmp.name)
-    
+
     def handle_convert_file_encoding(self, data):
         file_data = data.get("file")
         if not file_data or not isinstance(file_data, dict):
@@ -551,7 +598,7 @@ class FastHandler(BaseHTTPRequestHandler):
             self.send_json({"path": f"/api/image/{out_name}", "filename": out_name})
         except Exception as e:
             self.send_error(500, f"编码转换失败: {str(e)}")
-    
+
     def handle_convert_generic(self, data):
         file_data = data.get("file")
         if not file_data or not isinstance(file_data, dict):
@@ -559,13 +606,13 @@ class FastHandler(BaseHTTPRequestHandler):
         filename = file_data.get("filename", "")
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         target = data.get("format", data.get("target_format", "")).lower()
-        
+
         # Auto-detect category from source file extension or target format
         img_exts = {"png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif"}
         video_exts = {"mp4", "avi", "mov", "mkv", "webm", "wmv", "gif"}
         audio_exts = {"mp3", "wav", "aac", "ogg", "flac", "wma"}
         text_enc = {"utf8", "utf-8", "gbk", "gb2312", "big5"}
-        
+
         if target in text_enc:
             data["target_encoding"] = target
             return self.handle_convert_file_encoding(data)
@@ -610,7 +657,7 @@ class FastHandler(BaseHTTPRequestHandler):
             except Exception as ks_e:
                 self.send_json({"success": False, "error": f"快手解析异常: {str(ks_e)[:60]}"})
                 return
-        
+
         lazy_import_parse()
         try:
             # 先提取纯净链接
@@ -652,7 +699,7 @@ class FastHandler(BaseHTTPRequestHandler):
                 self.send_json({"success": False, "error": err})
         except Exception as e:
             self.send_json({"success": False, "error": "解析出错: " + str(e)[:100]})
-    
+
     def log_message(self, format, *args):
         # Suppress default logging
         pass
@@ -683,6 +730,7 @@ def auto_download_lama():
             print('[Server] LaMa model downloaded')
         except Exception as e:
             print(f'[Server] LaMa download failed: {e}')
+
 def preload_models():
     """Preload heavy ML models on server startup"""
     print("[Server] Preloading ML models...")

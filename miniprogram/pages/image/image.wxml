@@ -9,7 +9,7 @@
       <view class="image-canvas-wrap">
         <image id="mainImage" src="{{image}}" class="preview" mode="widthFix" bindload="onImageLoaded"></image>
         <canvas canvas-id="brushCanvas" class="brush-overlay" hidden="{{!brushMode}}"
-          bindtouchstart="onBrushStart" bindtouchmove="onBrushMove" bindtouchend="onBrushEnd"></canvas>
+          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></canvas>
       </view>
       <view class="brush-tools" wx:if="{{brushMode}}">
         <text class="brush-label">画笔大小: {{brushSize}}</text>

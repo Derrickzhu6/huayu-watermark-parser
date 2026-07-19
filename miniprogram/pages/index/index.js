@@ -32,20 +32,34 @@ Page({
   onDownload() {
     const r = this.data.result;
     if (!r || !r.video_url) return;
+    const app = getApp();
     wx.showLoading({ title: "下载中..." });
-    wx.downloadFile({
-      url: r.video_url,
+    // 通过服务器代理下载（解决小程序无法直接下载第三方CDN资源）
+    wx.request({
+      url: app.globalData.serverUrl + "/api/video/download",
+      method: "POST",
+      header: { "Content-Type": "application/x-www-form-urlencoded" },
+      data: "url=" + encodeURIComponent(r.video_url),
+      timeout: 60000,
       success: (res) => {
-        wx.saveVideoToPhotosAlbum({
-          filePath: res.tempFilePath,
-          success: () => { wx.showToast({ title: "已保存到相册" }); },
-          fail: () => { wx.showToast({ title: "保存失败，请授权相册权限", icon: "none" }); }
-        });
+        if (res.data.path) {
+          const dlUrl = app.globalData.serverUrl + res.data.path;
+          wx.downloadFile({
+            url: dlUrl,
+            success: (dlRes) => {
+              wx.saveVideoToPhotosAlbum({
+                filePath: dlRes.tempFilePath,
+                success: () => { wx.showToast({ title: "已保存到相册" }); },
+                fail: () => { wx.showToast({ title: "保存失败，请授权相册权限", icon: "none" }); }
+              });
+            },
+            fail: () => { wx.showToast({ title: "下载失败", icon: "none" }); }
+          });
+        } else {
+          wx.showToast({ title: res.data.error || "下载失败", icon: "none" });
+        }
       },
-      fail: () => {
-        // 不支持直接下载，用分享
-        wx.showToast({ title: "下载失败，请长按视频保存", icon: "none" });
-      },
+      fail: () => { wx.showToast({ title: "网络错误", icon: "none" }); },
       complete: () => { wx.hideLoading(); }
     });
   }

@@ -29,16 +29,17 @@ Page({
 
   // 设置canvas画布实际尺寸匹配图片显示尺寸
   _setCanvasSize(w, h) {
-    const query = wx.createSelectorQuery().in(this);
-    query.select(".brush-overlay").fields({ node: true, size: true }).exec((res) => {
-      // 新canvas 2D接口（基础库2.9.0+）
-      if (res && res[0] && res[0].node) {
-        const canvas = res[0].node;
-        canvas.width = w;
-        canvas.height = h;
+    // 确保canvas覆盖图片区域
+    this._refreshCanvasRect();
+  },
+  
+  _refreshCanvasRect() {
+    const that = this;
+    wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
+      if (rect) {
+        that.canvasRect = rect;
       }
-      // 传统canvas：通过样式控制
-    });
+    }).exec();
   },
 
   async onAutoInpaint() {
@@ -88,18 +89,26 @@ Page({
   },
   
   onBrushStart(e) {
-    if (!this.canvasCtx || !this.canvasRect) return;
-    const t = e.touches[0];
-    const x = t.x - this.canvasRect.left;
-    const y = t.y - this.canvasRect.top;
-    this.brushPts = [{ x, y }];
+    if (!this.canvasCtx) return;
+    const that = this;
+    wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
+      if (rect) that.canvasRect = rect;
+    }).exec();
+    // Wait a tick for canvasRect refresh
+    setTimeout(() => {
+      if (!that.canvasRect) return;
+      const t = e.touches[0];
+      const x = t.x - that.canvasRect.left;
+      const y = t.y - that.canvasRect.top;
+      that.brushPts = [{ x, y }];
+    }, 50);
   },
   
   onBrushMove(e) {
     if (!this.canvasCtx || !this.canvasRect || this.brushPts.length === 0) return;
     const t = e.touches[0];
     const x = t.x - this.canvasRect.left;
-    const y = t.y - this.canvasRect.top;
+    const y = t.y - this.canvasRect.top - 1; // 微调对齐
     const prev = this.brushPts[this.brushPts.length - 1];
     this.brushPts.push({ x, y });
     
