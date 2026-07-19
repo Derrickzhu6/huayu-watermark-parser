@@ -6,32 +6,24 @@
     <button class="btn-upload" bindtap="onChooseImage" wx:if="{{!image}}">添加照片</button>
     
     <view wx:if="{{image}}" class="preview-wrap">
-      <view class="image-canvas-wrap">
-        <image id="mainImage" src="{{image}}" class="preview" mode="widthFix" bindload="onImageLoaded"></image>
-        <!-- canvas 永远显示，避免上下文销毁 -->
-        <canvas canvas-id="brushCanvas" class="brush-canvas" width="{{canvasW}}" height="{{canvasH}}"></canvas>
-        <!-- 触摸层只控制触摸接收，不控制 canvas 显示 -->
-        <view class="brush-overlay {{brushMode ? '' : 'hidden'}}"
-          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></view>
+      <view class="image-wrap" id="imageWrap">
+        <image src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"></image>
+        <!-- canvas 永远不隐藏，触摸直接绑在 canvas 上 -->
+        <canvas canvas-id="brushCanvas" class="brush-layer {{brushMode ? '' : 'dim'}}"
+          width="{{canvasW}}" height="{{canvasH}}"
+          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></canvas>
       </view>
-      <view class="brush-tools" wx:if="{{brushMode}}">
-        <text class="brush-label">画笔大小: {{brushSize}}</text>
-        <slider class="brush-slider" min="3" max="30" value="{{brushSize}}" bindchange="onBrushSizeChange" showValue="{{false}}"></slider>
-      </view>
+      <button class="btn-primary" wx:if="{{brushMode && brushPts.length >= 2}}" bindtap="onBrushInpaint">开始修复</button>
       <button class="btn-reselect" bindtap="onReset">重新选择</button>
     </view>
     
     <view wx:if="{{image}}" class="tools">
+      <button class="btn-primary" bindtap="onToggleBrush">{{brushMode ? "关闭画笔" : "涂抹修复"}}</button>
       <button class="btn-primary" bindtap="onAutoInpaint" loading="{{processing}}">{{processing ? "处理中..." : "一键去水印"}}</button>
-      <view class="brush-section">
-        <button class="btn-secondary" bindtap="onToggleBrush">{{brushMode ? "关闭画笔" : "涂抹修复"}}</button>
-        <view class="brush-hint" wx:if="{{brushMode}}">在图片上涂抹水印区域，然后点"开始修复"</view>
-        <button class="btn-primary" wx:if="{{brushMode && brushPts.length >= 2}}" bindtap="onBrushInpaint">开始修复</button>
-      </view>
     </view>
     
     <view wx:if="{{resultImage}}" class="result-section">
-      <image src="{{resultImage}}" class="preview" mode="widthFix"></image>
+      <image src="{{resultImage}}" class="preview-img" mode="widthFix"></image>
       <button class="btn-download" bindtap="onSaveImage">保存到相册</button>
       <button class="btn-secondary" bindtap="onReset">重新选择</button>
     </view>

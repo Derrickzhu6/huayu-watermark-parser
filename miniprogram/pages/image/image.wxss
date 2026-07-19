@@ -4,23 +4,15 @@
 .card-desc { font-size: 12px; color: #636e72; margin-bottom: 12px; }
 .btn-upload { width: 100%; padding: 20px; background: #f8f9fa; border: 2px dashed #e0e0e0; border-radius: 10px; font-size: 14px; color: #636e72; text-align: center; }
 .preview-wrap { margin-bottom: 8px; }
-.image-canvas-wrap { position: relative; display: inline-block; width: 100%; line-height: 0; font-size: 0; }
-.preview { width: 100%; border-radius: 8px; display: block; }
-.image-canvas-wrap image { vertical-align: top; }
-/* canvas 永远显示，不隐藏，只通过 z-index 和 pointer-events 控制 */
-.brush-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; pointer-events: none; z-index: 5; }
-/* 触摸层在 canvas 上方，捕获触摸事件 */
-.brush-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; z-index: 10; }
-.brush-overlay.hidden { display: none; }
-.brush-tools { display: flex; align-items: center; margin-bottom: 8px; }
-.brush-label { font-size: 12px; color: #636e72; white-space: nowrap; margin-right: 8px; }
-.brush-slider { flex: 1; }
-.btn-reselect { width: 100%; padding: 6px; background: #fff; color: #e74c3c; border: 1.5px solid #e74c3c; border-radius: 6px; font-size: 12px; text-align: center; }
+.image-wrap { position: relative; display: inline-block; width: 100%; line-height: 0; font-size: 0; }
+.preview-img { width: 100%; border-radius: 8px; display: block; }
+/* canvas 一直显示，不隐藏。brush-mode 时可见可触摸，dim 时半透明不触屏 */
+.brush-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; }
+.brush-layer.dim { opacity: 0; pointer-events: none; }
+.btn-reselect { width: 100%; padding: 6px; background: #fff; color: #e74c3c; border: 1.5px solid #e74c3c; border-radius: 6px; font-size: 12px; text-align: center; margin-top: 8px; }
 .tools { margin-top: 8px; }
 .btn-primary { width: 100%; padding: 10px; background: linear-gradient(135deg, #e74c3c, #2ecc71); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .btn-secondary { width: 100%; padding: 8px; background: #fff; color: #636e72; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
 .btn-download { width: 100%; padding: 10px; background: #e74c3c; color: #fff; border: none; border-radius: 8px; font-size: 14px; margin-top: 8px; }
-.brush-section { margin-top: 8px; }
-.brush-hint { font-size: 11px; color: #e74c3c; margin-bottom: 6px; }
 .result-section { margin-top: 12px; }
 .footer { text-align: center; font-size: 11px; color: #b2bec3; padding: 20px 0; }
