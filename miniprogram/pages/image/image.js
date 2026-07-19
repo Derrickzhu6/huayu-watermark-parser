@@ -2,18 +2,11 @@
 
 Page({
   data: { 
-    image: "", 
-    resultImage: "", 
-    brushMode: false, 
-    processing: false, 
-    brushSize: 8,
-    canvasW: 300,
-    canvasH: 150
+    image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8
   },
   brushPts: [],
-  ctx: null,
-  imgRect: null,
   isDrawing: false,
+  imgRect: null,
   origW: 0,
   origH: 0,
 
@@ -22,13 +15,8 @@ Page({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        this.setData({ 
-          image: res.tempFilePaths[0], 
-          resultImage: "", brushMode: false, processing: false,
-          canvasW: 300, canvasH: 150
-        });
-        this.brushPts = []; this.ctx = null; this.imgRect = null;
-        this.isDrawing = false; this.origW = 0; this.origH = 0;
+        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false });
+        this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
       }
     });
   },
@@ -39,24 +27,12 @@ Page({
       src: that.data.image,
       success: (info) => { that.origW = info.width; that.origH = info.height; }
     });
-    that._getImageRect();
-  },
-
-  _getImageRect() {
-    const that = this;
     setTimeout(() => {
       wx.createSelectorQuery().in(that)
-        .select("#mainImage")
+        .select(".image-wrap")
         .boundingClientRect((rect) => {
-          if (rect && rect.width > 0 && rect.height > 0) {
-            const w = Math.round(rect.width);
-            const h = Math.round(rect.height);
-            that.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
-            that.setData({ canvasW: w, canvasH: h }, () => {
-              if (!that.ctx) {
-                that.ctx = wx.createCanvasContext("brushCanvas", that);
-              }
-            });
+          if (rect && rect.width > 0) {
+            that.imgRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
           }
         }).exec();
     }, 400);
@@ -67,26 +43,14 @@ Page({
     this.setData({ brushMode: m });
     this.brushPts = [];
     this.isDrawing = false;
-    if (this.ctx) {
-      this.ctx.clearRect(0, 0, this.data.canvasW, this.data.canvasH);
-      this.ctx.draw();
-    }
     if (m && !this.imgRect) {
-      setTimeout(() => {
-        wx.createSelectorQuery().in(this)
-          .select("#mainImage")
-          .boundingClientRect((rect) => {
-            if (rect && rect.width > 0 && rect.height > 0) {
-              const w = Math.round(rect.width);
-              const h = Math.round(rect.height);
-              this.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
-              this.setData({ canvasW: w, canvasH: h });
-              if (!this.ctx) {
-                this.ctx = wx.createCanvasContext("brushCanvas", this);
-              }
-            }
-          }).exec();
-      }, 200);
+      wx.createSelectorQuery().in(this)
+        .select(".image-wrap")
+        .boundingClientRect((rect) => {
+          if (rect && rect.width > 0) {
+            this.imgRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+          }
+        }).exec();
     }
   },
 
@@ -109,40 +73,20 @@ Page({
   },
 
   onBrushStart(e) {
-    if (!this.ctx || !this.imgRect || !this.data.brushMode) return;
+    if (!this.imgRect || !this.data.brushMode) return;
     this.isDrawing = true;
-    // 使用 clientX/clientY（视口坐标），跟 boundingClientRect 一致
     const t = e.touches[0];
-    const x = (t.clientX || t.x) - this.imgRect.left;
-    const y = (t.clientY || t.y) - this.imgRect.top;
-    const px = Math.max(0, Math.round(x));
-    const py = Math.max(0, Math.round(y));
-    this.brushPts = [{ x: px, y: py }];
-    this.ctx.setStrokeStyle("#e74c3c");
-    this.ctx.setLineWidth(this.data.brushSize);
-    this.ctx.setLineCap("round");
-    this.ctx.setLineJoin("round");
-    this.ctx.beginPath();
-    this.ctx.arc(px, py, this.data.brushSize / 2, 0, 2 * Math.PI);
-    this.ctx.fillStyle = "#e74c3c";
-    this.ctx.fill();
-    this.ctx.draw(true);
+    const px = Math.round(t.x - this.imgRect.left);
+    const py = Math.round(t.y - this.imgRect.top);
+    this.brushPts = [{ x: Math.max(0, px), y: Math.max(0, py) }];
   },
 
   onBrushMove(e) {
-    if (!this.isDrawing || !this.ctx || !this.imgRect) return;
+    if (!this.isDrawing || !this.imgRect) return;
     const t = e.touches[0];
-    const x = (t.clientX || t.x) - this.imgRect.left;
-    const y = (t.clientY || t.y) - this.imgRect.top;
-    const px = Math.max(0, Math.round(x));
-    const py = Math.max(0, Math.round(y));
-    const prev = this.brushPts[this.brushPts.length - 1];
-    this.brushPts.push({ x: px, y: py });
-    this.ctx.beginPath();
-    this.ctx.moveTo(prev.x, prev.y);
-    this.ctx.lineTo(px, py);
-    this.ctx.stroke();
-    this.ctx.draw(true);
+    const px = Math.round(t.x - this.imgRect.left);
+    const py = Math.round(t.y - this.imgRect.top);
+    this.brushPts.push({ x: Math.max(0, px), y: Math.max(0, py) });
   },
 
   onBrushEnd() { this.isDrawing = false; },
@@ -163,7 +107,7 @@ Page({
     wx.showLoading({ title: "处理中..." });
     api.uploadAndInpaint(this.data.image, {
       pointsJson: JSON.stringify(pts),
-      brushRadius: String(Math.round(this.data.brushSize * Math.min(sx, sy)))
+      brushRadius: String(Math.round(this.data.brushSize * (sx + sy) / 2))
     }).then((res) => {
       this.setData({ resultImage: res.path, brushMode: false });
       wx.hideLoading();
@@ -182,11 +126,7 @@ Page({
   },
 
   onReset() {
-    this.setData({ 
-      image: "", resultImage: "", brushMode: false, processing: false,
-      canvasW: 300, canvasH: 150
-    });
-    this.brushPts = []; this.ctx = null; this.imgRect = null;
-    this.isDrawing = false; this.origW = 0; this.origH = 0;
+    this.setData({ image: "", resultImage: "", brushMode: false, processing: false });
+    this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
   }
 });

@@ -6,16 +6,18 @@
     <button class="btn-upload" bindtap="onChooseImage" wx:if="{{!image}}">添加照片</button>
     
     <view wx:if="{{image}}" class="preview-wrap">
-      <view class="image-wrap" id="imageWrap">
-        <image id="mainImage" src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"></image>
-        <canvas canvas-id="brushCanvas" class="brush-layer {{brushMode ? '' : 'dim'}}"
-          width="{{canvasW}}" height="{{canvasH}}"
-          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></canvas>
+      <view class="image-wrap">
+        <image src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"
+          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></image>
       </view>
       
       <view wx:if="{{brushMode}}" class="brush-tools">
         <text class="brush-label">画笔大小: {{brushSize}}</text>
         <slider class="brush-slider" min="3" max="30" value="{{brushSize}}" bindchange="onBrushSizeChange"></slider>
+      </view>
+      
+      <view wx:if="{{brushMode && brushPts.length >= 2}}" class="brush-actions">
+        <button class="btn-primary" bindtap="onBrushInpaint">开始修复</button>
       </view>
       
       <button class="btn-reselect" bindtap="onReset">重新选择</button>
@@ -24,7 +26,6 @@
     <view wx:if="{{image}}" class="tools">
       <button class="btn-primary" bindtap="onToggleBrush">{{brushMode ? "关闭画笔" : "涂抹修复"}}</button>
       <button class="btn-primary" bindtap="onAutoInpaint" loading="{{processing}}">{{processing ? "处理中..." : "一键去水印"}}</button>
-      <button class="btn-primary" wx:if="{{brushMode && brushPts.length >= 2}}" bindtap="onBrushInpaint">开始修复</button>
     </view>
     
     <view wx:if="{{resultImage}}" class="result-section">
