@@ -2,9 +2,11 @@ const app = getApp();
 const api = require("../../utils/api");
 
 Page({
-  data: { image: "", resultImage: "", brushMode: false, brushReady: false, processing: false, brushSize: 8, imgWidth: 0, imgHeight: 0, origWidth: 0, origHeight: 0, scaleX: 1, scaleY: 1 },
+  data: { image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8, imgW: 0, imgH: 0, origW: 0, origH: 0, scaleX: 1, scaleY: 1 },
   brushPts: [],
   canvasCtx: null,
+  canvasRect: null,
+  isDrawing: false,
 
   onChooseImage() {
     const that = this;
@@ -12,16 +14,17 @@ Page({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        const tempPath = res.tempFilePaths[0];
+        const path = res.tempFilePaths[0];
         wx.getImageInfo({
-          src: tempPath,
+          src: path,
           success: (info) => {
             that.setData({ 
-              image: tempPath, resultImage: "", brushMode: false, brushReady: false,
-              imgWidth: 0, imgHeight: 0, origWidth: info.width, origHeight: info.height
+              image: path, resultImage: "", brushMode: false, processing: false,
+              imgW: 0, imgH: 0, origW: info.width, origH: info.height, scaleX: 1, scaleY: 1
             });
             that.brushPts = [];
             that.canvasCtx = null;
+            that.canvasRect = null;
           }
         });
       }
@@ -29,46 +32,37 @@ Page({
   },
 
   onImageLoaded(e) {
-    const { width, height } = e.detail;
-    const origW = this.data.origWidth || width;
-    const origH = this.data.origHeight || height;
-    this.setData({ 
-      imgWidth: width, imgHeight: height,
-      scaleX: origW / width,
-      scaleY: origH / height
-    });
-    // 刷新canvas位置缓存
-    this._refreshCanvasRect();
-  },
-  
-  _refreshCanvasRect() {
+    const w = e.detail.width, h = e.detail.height;
+    const ow = this.data.origW || w, oh = this.data.origH || h;
+    this.setData({ imgW: w, imgH: h, scaleX: ow / w, scaleY: oh / h });
     const that = this;
-    wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
-      if (rect) that.canvasRect = rect;
-    }).exec();
+    setTimeout(() => {
+      wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
+        if (rect) { that.canvasRect = rect; }
+      }).exec();
+    }, 200);
   },
 
   onAutoInpaint() {
     if (!this.data.image || this.data.processing) return;
     this.setData({ processing: true });
     wx.showLoading({ title: "处理中..." });
-    api.uploadAndInpaint(this.data.image, { useAuto: true, radius: "5" }).then((result) => {
+    api.uploadAndInpaint(this.data.image, { useAuto: true, radius: "5" }).then((res) => {
+      this.setData({ resultImage: res.path });
       wx.hideLoading();
-      this.setData({ resultImage: result.path });
-      wx.showToast({ title: "处理完成", icon: "success" });
+      wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
       wx.hideLoading();
       wx.showToast({ title: e.message || "处理失败", icon: "none" });
-    }).finally(() => {
-      this.setData({ processing: false });
-    });
+    }).finally(() => { this.setData({ processing: false }); });
   },
-  
+
   onToggleBrush() {
-    const newMode = !this.data.brushMode;
-    this.setData({ brushMode: newMode, brushReady: false });
+    const m = !this.data.brushMode;
+    this.setData({ brushMode: m });
     this.brushPts = [];
-    if (newMode) {
+    this.isDrawing = false;
+    if (m) {
       const that = this;
       setTimeout(() => {
         that.canvasCtx = wx.createCanvasContext("brushCanvas", that);
@@ -76,68 +70,54 @@ Page({
         that.canvasCtx.setLineWidth(that.data.brushSize);
         that.canvasCtx.setLineCap("round");
         that.canvasCtx.setLineJoin("round");
-        that._refreshCanvasRect();
-        that.setData({ brushReady: true });
+        wx.createSelectorQuery().in(that).select(".brush-overlay").boundingClientRect((rect) => {
+          if (rect) { that.canvasRect = rect; console.log("Rect:", JSON.stringify(rect)); }
+        }).exec();
       }, 300);
     }
   },
 
   onBrushSizeChange(e) {
-    const sz = e.detail.value;
-    this.setData({ brushSize: sz });
-    if (this.canvasCtx) this.canvasCtx.setLineWidth(sz);
-  },
-  
-  getCanvasPos(e) {
-    // 计算canvas内的坐标（相对于图片显示区域）
-    const query = wx.createSelectorQuery().in(this);
-    return new Promise((resolve) => {
-      query.select(".brush-overlay").boundingClientRect((rect) => {
-        if (!rect) { resolve(null); return; }
-        const t = e.touches[0];
-        const x = t.x - rect.left;
-        const y = t.y - rect.top;
-        // 缩放为原图坐标
-        const scaleX = this.data.scaleX;
-        const scaleY = this.data.scaleY;
-        resolve({ x: x * scaleX, y: y * scaleY, rawX: x, rawY: y });
-      }).exec();
-    });
+    this.setData({ brushSize: e.detail.value });
+    if (this.canvasCtx) this.canvasCtx.setLineWidth(e.detail.value);
   },
 
   onBrushStart(e) {
-    if (!this.canvasCtx) return;
-    this._refreshCanvasRect();
-    setTimeout(() => {
-      const pos = this.getCanvasPos(e);
-      if (!pos) return;
-      this.brushPts = [{ x: pos.x, y: pos.y }];
-    }, 30);
+    if (!this.canvasCtx || !this.canvasRect) return;
+    this.isDrawing = true;
+    const t = e.touches[0];
+    const rx = (t.x - this.canvasRect.left);
+    const ry = (t.y - this.canvasRect.top);
+    // 存原始图坐标（缩放后）
+    this.brushPts = [{
+      x: Math.round(rx * this.data.scaleX),
+      y: Math.round(ry * this.data.scaleY)
+    }];
   },
-  
-  async onBrushMove(e) {
-    if (!this.canvasCtx || this.brushPts.length === 0) return;
-    const pos = await this.getCanvasPos(e);
-    if (!pos) return;
+
+  onBrushMove(e) {
+    if (!this.isDrawing || !this.canvasCtx || !this.canvasRect || this.brushPts.length === 0) return;
+    const t = e.touches[0];
+    const rx = (t.x - this.canvasRect.left);
+    const ry = (t.y - this.canvasRect.top);
     const prev = this.brushPts[this.brushPts.length - 1];
-    this.brushPts.push({ x: pos.x, y: pos.y });
-    
-    // 在canvas上画（用原始坐标显示）
+    const pt = {
+      x: Math.round(rx * this.data.scaleX),
+      y: Math.round(ry * this.data.scaleY)
+    };
+    this.brushPts.push(pt);
+    // canvas显示用屏幕坐标（不缩放）
     this.canvasCtx.beginPath();
     this.canvasCtx.moveTo(prev.x / this.data.scaleX, prev.y / this.data.scaleY);
-    this.canvasCtx.lineTo(pos.x / this.data.scaleX, pos.y / this.data.scaleY);
+    this.canvasCtx.lineTo(pt.x / this.data.scaleX, pt.y / this.data.scaleY);
     this.canvasCtx.stroke();
     this.canvasCtx.draw(true);
-    
-    if (this.brushPts.length >= 2) {
-      this.setData({ brushReady: true });
-    }
   },
-  
-  onBrushEnd() {},
-  
+
+  onBrushEnd() { this.isDrawing = false; },
+
   onBrushInpaint() {
-    if (!this.data.image || !this.brushPts || this.brushPts.length < 2) {
+    if (!this.data.image || this.brushPts.length < 2) {
       wx.showToast({ title: "请先在图片上涂抹水印区域", icon: "none" });
       return;
     }
@@ -147,28 +127,25 @@ Page({
     api.uploadAndInpaint(this.data.image, {
       pointsJson: JSON.stringify(this.brushPts),
       brushRadius: String(this.data.brushSize)
-    }).then((result) => {
+    }).then((res) => {
+      this.setData({ resultImage: res.path, brushMode: false });
       wx.hideLoading();
-      this.setData({ resultImage: result.path, brushMode: false });
-      wx.showToast({ title: "处理完成", icon: "success" });
+      wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
       wx.hideLoading();
       wx.showToast({ title: e.message || "处理失败", icon: "none" });
-    }).finally(() => {
-      this.setData({ processing: false });
-    });
+    }).finally(() => { this.setData({ processing: false }); });
   },
-  
+
   onSaveImage() {
     if (!this.data.resultImage) return;
     api.downloadAndSave(this.data.resultImage).catch((e) => {
       wx.showToast({ title: e.message || "保存失败", icon: "none" });
     });
   },
-  
+
   onReset() {
-    this.setData({ image: "", resultImage: "", brushMode: false, brushReady: false, processing: false });
-    this.brushPts = [];
-    this.canvasCtx = null;
+    this.setData({ image: "", resultImage: "", brushMode: false, processing: false });
+    this.brushPts = []; this.canvasCtx = null; this.canvasRect = null; this.isDrawing = false;
   }
 });
