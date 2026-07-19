@@ -1,16 +1,17 @@
-.container { padding: 12px; }
+﻿.container { padding: 12px; }
 .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
 .card-desc { font-size: 12px; color: #636e72; margin-bottom: 12px; }
 .btn-upload { width: 100%; padding: 20px; background: #f8f9fa; border: 2px dashed #e0e0e0; border-radius: 10px; font-size: 14px; color: #636e72; text-align: center; }
 .preview-wrap { margin-bottom: 8px; }
-.image-canvas-wrap { position: relative; display: inline-block; width: 100%; }
+.image-canvas-wrap { position: relative; display: inline-block; width: 100%; line-height: 0; font-size: 0; }
 .preview { width: 100%; border-radius: 8px; display: block; }
+.image-canvas-wrap image { vertical-align: top; }
 .brush-overlay {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  width: 100%; height: 100%;
+  position: absolute; top: 0; left: 0;
   border-radius: 8px;
 }
+.brush-overlay.hidden { display: none; }
 .brush-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .brush-label { font-size: 12px; color: #636e72; white-space: nowrap; }
 .brush-slider { flex: 1; }
@@ -23,7 +24,3 @@
 .brush-hint { font-size: 11px; color: #e74c3c; margin-bottom: 6px; }
 .result-section { margin-top: 12px; }
 .footer { text-align: center; font-size: 11px; color: #b2bec3; padding: 20px 0; }
-/* 修复canvas对齐 */
-.image-canvas-wrap { line-height: 0; font-size: 0; }
-.image-canvas-wrap image { vertical-align: top; }
-.image-canvas-wrap canvas { vertical-align: top; }

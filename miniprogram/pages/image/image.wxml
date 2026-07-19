@@ -1,4 +1,4 @@
-<view class="container">
+﻿<view class="container">
   <view class="card">
     <view class="card-title">图片去水印</view>
     <view class="card-desc">上传图片后一键去水印，或用画笔涂抹指定区域</view>
@@ -8,7 +8,8 @@
     <view wx:if="{{image}}" class="preview-wrap">
       <view class="image-canvas-wrap">
         <image id="mainImage" src="{{image}}" class="preview" mode="widthFix" bindload="onImageLoaded"></image>
-        <canvas canvas-id="brushCanvas" class="brush-overlay" hidden="{{!brushMode}}"
+        <canvas canvas-id="brushCanvas" class="brush-overlay {{brushMode ? '' : 'hidden'}}"
+          width="{{canvasWidth}}" height="{{canvasHeight}}"
           catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></canvas>
       </view>
       <view class="brush-tools" wx:if="{{brushMode}}">

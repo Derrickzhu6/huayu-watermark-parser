@@ -88,50 +88,63 @@ def simple_inpaint(img, mask, radius=3):
     return _cv2.inpaint(img, m, radius, _cv2.INPAINT_TELEA)
 
 def _detect_text_watermark(img):
-    """检测文字水印：梯度检测 + 形态学连接 + 组件过滤"""
+    """轻量文字水印检测：保守策略，只检测角落明显的水印文字，避免误伤主体"""
     import cv2 as _cv2
     import numpy as _np
     h, w = img.shape[:2]
     gray = _cv2.cvtColor(img, _cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
 
-    # 计算梯度幅度（文字边缘明显）
+    # 只在图像边缘区域（上下15%、左右15%）检测——水印通常在角落
+    margin_x = int(w * 0.15)
+    margin_y = int(h * 0.15)
+    corner_mask = _np.zeros((h, w), dtype=_np.uint8)
+    corner_mask[:margin_y, :] = 1
+    corner_mask[-margin_y:, :] = 1
+    corner_mask[:, :margin_x] = 1
+    corner_mask[:, -margin_x:] = 1
+
+    # 计算梯度
     gx = _cv2.Sobel(gray, _cv2.CV_32F, 1, 0, ksize=3)
     gy = _cv2.Sobel(gray, _cv2.CV_32F, 0, 1, ksize=3)
     mag = _cv2.magnitude(gx, gy).astype(_np.uint8)
 
-    # OTSU自适应阈值找到强边缘
-    _, edges = _cv2.threshold(mag, 0, 255, _cv2.THRESH_BINARY + _cv2.THRESH_OTSU)
+    # 只在边缘区域做OTSU
+    edge_only = mag * corner_mask
+    _, edges = _cv2.threshold(edge_only, 0, 255, _cv2.THRESH_BINARY + _cv2.THRESH_OTSU)
 
-    # 形态学闭合连接文字笔画
+    # 形态学闭合连接笔画
     k_close = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
-    mask = _cv2.morphologyEx(edges, _cv2.MORPH_CLOSE, k_close, iterations=2)
+    mask = _cv2.morphologyEx(edges, _cv2.MORPH_CLOSE, k_close, iterations=1)
 
     # 去掉孤立噪点
     k_open = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (2, 2))
     mask = _cv2.morphologyEx(mask, _cv2.MORPH_OPEN, k_open, iterations=1)
 
-    # 连通区域过滤
+    # 连通区域过滤 - 严格参数
     n, labels, stats, _ = _cv2.connectedComponentsWithStats(mask, 8)
     result = _np.zeros((h, w), dtype=_np.uint8)
-    min_a = max(8, int(h * w * 0.0003))
-    max_a = int(h * w * 0.04)
+    min_a = max(8, int(h * w * 0.00015))
+    max_a = int(h * w * 0.015)
     found = 0
     for i in range(1, n):
         area = stats[i, _cv2.CC_STAT_AREA]
         bw = stats[i, _cv2.CC_STAT_WIDTH]
         bh = stats[i, _cv2.CC_STAT_HEIGHT]
-        aspect = max(bw, bh) / _np.maximum(min(bw, bh), 1)
-        if min_a < area < max_a and aspect < 12:
-            result[labels == i] = 255
-            found += 1
+        aspect = max(bw, bh) / max(min(bw, bh), 1)
+        if min_a < area < max_a and aspect < 8:
+            # 额外检查：区域中心在边缘区域
+            cx = stats[i, _cv2.CC_STAT_LEFT] + bw // 2
+            cy = stats[i, _cv2.CC_STAT_TOP] + bh // 2
+            if corner_mask[cy, cx] > 0:
+                result[labels == i] = 255
+                found += 1
 
-    # 膨胀覆盖完整笔画
+    # 轻微膨胀覆盖笔画
     if found > 0:
-        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
-        result = _cv2.dilate(result, kd, iterations=2)
+        kd = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (2, 2))
+        result = _cv2.dilate(result, kd, iterations=1)
 
     return result
-
 def _limit_resolution(img, max_px=1080):
     """限制图片最大边长，加速处理"""
     import cv2 as _cv2
@@ -413,8 +426,7 @@ class FastHandler(BaseHTTPRequestHandler):
                 mask_ratio = pixel_count / (img.shape[0] * img.shape[1]) if pixel_count > 0 else 0
                 if pixel_count < 10:
                     return self.send_error(400, "未检测到有效水印区域，请尝试画笔手动涂抹")
-                # 如果检测区域太大（超过25%），返回失败建议使用画笔
-                if mask_ratio > 0.30:
+                if mask_ratio > 0.35:
                     return self.send_error(400, "图片复杂度过高，请使用画笔手动涂抹水印区域")
                 proc_img, scale = _limit_resolution(img, 1080)
                 if scale < 1.0:
@@ -422,15 +434,15 @@ class FastHandler(BaseHTTPRequestHandler):
                 else:
                     m = mask
                 lazy_import_ml()
-                result = improved_inpaint(proc_img, m, quality="quality")
+                result = improved_inpaint(proc_img, m, quality="speed")
                 if scale < 1.0:
                     result = cv2.resize(result, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
-                out_name = f"out_" + uuid.uuid4().hex + ".png"
+                out_name = "out_" + uuid.uuid4().hex + ".png"
                 out_path = RESULT_DIR / out_name
                 imwrite_unicode(out_path, result)
                 return self.send_json({"filename": out_name, "path": "/api/image/" + out_name})
             except Exception as e:
-                return self.send_error(500, f"自动去水印失败: " + str(e))
+                return self.send_error(500, "自动去水印失败: " + str(e))
 
         points_json = data.get("points_json", "[]")
         try:
@@ -438,37 +450,33 @@ class FastHandler(BaseHTTPRequestHandler):
             if not points or len(points) < 3:
                 return self.send_error(400, "请先在图片上涂抹水印区域（至少涂抹3个点）")
             radius = int(data.get("brush_radius", data.get("radius", "15")))
-            # Lazy import for brush mask creation
+            h, w = img.shape[:2]
+
+            # 安全兗底：如果坐标明显偏小，自动缩放到原图尺寸
+            max_coord = 0
+            for pt in points:
+                max_coord = max(max_coord, abs(pt.get("x", 0)), abs(pt.get("y", 0)))
+            if max_coord > 0 and max_coord < min(w, h) * 0.3:
+                sx = w / max_coord
+                sy = h / max_coord
+                if sx > 2 or sy > 2:
+                    points = [{"x": int(pt["x"] * sx), "y": int(pt["y"] * sy)} for pt in points]
+
             from processors.inpainting import create_mask_from_strokes
             mask = create_mask_from_strokes(img.shape, points, radius)
             pixel_count = int(np.sum(mask > 0))
             if pixel_count < 10:
                 return self.send_error(400, "涂抹区域太小，请扩大涂抹范围")
             lazy_import_ml()
-            result = improved_inpaint(img, mask, quality="quality")
-            out_name = f"out_" + uuid.uuid4().hex + ".png"
+            result = improved_inpaint(img, mask, quality="speed")
+            out_name = "out_" + uuid.uuid4().hex + ".png"
             out_path = RESULT_DIR / out_name
             imwrite_unicode(out_path, result)
             return self.send_json({"filename": out_name, "path": "/api/image/" + out_name})
         except json.JSONDecodeError:
             return self.send_error(400, "涂抹数据格式错误")
         except Exception as e:
-            return self.send_error(500, f"修复失败: " + str(e))
-    def handle_remove_text(self, data):
-        lazy_import_ml()
-        filename = data.get("filename", "")
-        threshold = int(data.get("threshold", 40))
-        src_path = UPLOAD_DIR / filename
-        if not src_path.exists():
-            return self.send_error(404, "原图不存在")
-        img = imread_unicode(src_path)
-        lazy_import_filter()
-        result = text_watermark_removal(img, threshold)
-        out_name = f"out_{uuid.uuid4().hex}.png"
-        out_path = RESULT_DIR / out_name
-        imwrite_unicode(out_path, result)
-        return self.send_json({"filename": out_name, "path": f"/api/image/{out_name}"})
-
+            return self.send_error(500, "修复失败: " + str(e))
     def handle_frequency(self, data):
         lazy_import_ml()
         filename = data.get("filename", "")
