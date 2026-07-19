@@ -111,9 +111,10 @@ Page({
   onBrushStart(e) {
     if (!this.ctx || !this.imgRect || !this.data.brushMode) return;
     this.isDrawing = true;
+    // 使用 clientX/clientY（视口坐标），跟 boundingClientRect 一致
     const t = e.touches[0];
-    const x = t.x - this.imgRect.left;
-    const y = t.y - this.imgRect.top;
+    const x = (t.clientX || t.x) - this.imgRect.left;
+    const y = (t.clientY || t.y) - this.imgRect.top;
     const px = Math.max(0, Math.round(x));
     const py = Math.max(0, Math.round(y));
     this.brushPts = [{ x: px, y: py }];
@@ -131,8 +132,8 @@ Page({
   onBrushMove(e) {
     if (!this.isDrawing || !this.ctx || !this.imgRect) return;
     const t = e.touches[0];
-    const x = t.x - this.imgRect.left;
-    const y = t.y - this.imgRect.top;
+    const x = (t.clientX || t.x) - this.imgRect.left;
+    const y = (t.clientY || t.y) - this.imgRect.top;
     const px = Math.max(0, Math.round(x));
     const py = Math.max(0, Math.round(y));
     const prev = this.brushPts[this.brushPts.length - 1];
