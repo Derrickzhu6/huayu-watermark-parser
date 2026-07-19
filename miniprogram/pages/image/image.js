@@ -1,26 +1,30 @@
-﻿const api = require("../../utils/api");
+﻿const app = getApp();
+const api = require("../../utils/api");
 
 Page({
   data: { 
     image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8,
-    brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0
+    canvasWidth: 300, canvasHeight: 150, brushPtsCount: 0
   },
-  brushPts: [],
-  isDrawing: false,
-  imgRect: null,
-  origW: 0,
-  origH: 0,
-  rectReady: false,
+  _pts: [],
+  _canvasCtx: null,
+  _rect: null,
+  _drawing: false,
+  _imgW: 0,
+  _imgH: 0,
 
   onChooseImage() {
+    const that = this;
     wx.chooseImage({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false, 
-          brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
-        this.brushPts = []; this.isDrawing = false; this.imgRect = null;
-        this.origW = 0; this.origH = 0; this.rectReady = false;
+        that.setData({ 
+          image: res.tempFilePaths[0], resultImage: "", brushMode: false, 
+          processing: false, canvasWidth: 300, canvasHeight: 150, brushPtsCount: 0
+        });
+        that._pts = []; that._canvasCtx = null; that._rect = null;
+        that._drawing = false; that._imgW = 0; that._imgH = 0;
       }
     });
   },
@@ -29,40 +33,20 @@ Page({
     const that = this;
     wx.getImageInfo({
       src: that.data.image,
-      success: (info) => { that.origW = info.width; that.origH = info.height; }
+      success: (info) => { that._imgW = info.width; that._imgH = info.height; }
     });
-    setTimeout(() => { that._queryRect(); }, 500);
-  },
-
-  _queryRect() {
-    const that = this;
-    wx.createSelectorQuery().in(that)
-      .select(".image-wrap")
-      .boundingClientRect((rect) => {
-        if (rect && rect.width > 0 && rect.height > 0) {
-          that.imgRect = {
-            left: rect.left,
-            top: rect.top,
-            width: Math.round(rect.width),
-            height: Math.round(rect.height)
-          };
-          that.rectReady = true;
-        }
-      }).exec();
-  },
-
-  onToggleBrush() {
-    const m = !this.data.brushMode;
-    this.setData({ brushMode: m, brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
-    this.brushPts = [];
-    this.isDrawing = false;
-    if (m && !this.rectReady) {
-      this._queryRect();
-    }
-  },
-
-  onBrushSizeChange(e) {
-    this.setData({ brushSize: e.detail.value });
+    setTimeout(() => {
+      wx.createSelectorQuery().in(that)
+        .select("#mainImage")
+        .boundingClientRect((rect) => {
+          if (rect && rect.width > 0 && rect.height > 0) {
+            const w = Math.round(rect.width);
+            const h = Math.round(rect.height);
+            that._rect = { left: rect.left, top: rect.top, width: w, height: h };
+            that.setData({ canvasWidth: w, canvasHeight: h });
+          }
+        }).exec();
+    }, 350);
   },
 
   onAutoInpaint() {
@@ -70,7 +54,7 @@ Page({
     this.setData({ processing: true });
     wx.showLoading({ title: "处理中..." });
     api.uploadAndInpaint(this.data.image, { useAuto: true, radius: "5" }).then((res) => {
-      this.setData({ resultImage: res.path, brushDots: [] });
+      this.setData({ resultImage: res.path });
       wx.hideLoading();
       wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
@@ -79,59 +63,114 @@ Page({
     }).finally(() => { this.setData({ processing: false }); });
   },
 
-  onBrushStart(e) {
-    if (!this.rectReady || !this.data.brushMode) return;
-    this.isDrawing = true;
-    const t = e.touches[0];
-    const cx = t.clientX !== undefined ? t.clientX : t.x;
-    const cy = t.clientY !== undefined ? t.clientY : t.y;
-    const px = Math.round(cx - this.imgRect.left);
-    const py = Math.round(cy - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) {
-      this.setData({ lastX: cx, lastY: cy, brushPtsLen: 0 });
-      return;
+  onToggleBrush() {
+    const m = !this.data.brushMode;
+    this.setData({ brushMode: m, brushPtsCount: 0 });
+    this._pts = []; this._drawing = false;
+    
+    if (m) {
+      const that = this;
+      if (!that._rect || that.data.canvasWidth <= 10) {
+        wx.createSelectorQuery().in(that)
+          .select("#mainImage")
+          .boundingClientRect((rect) => {
+            if (rect && rect.width > 0 && rect.height > 0) {
+              const w = Math.round(rect.width);
+              const h = Math.round(rect.height);
+              that._rect = { left: rect.left, top: rect.top, width: w, height: h };
+              that.setData({ canvasWidth: w, canvasHeight: h });
+            }
+          }).exec();
+      }
+      setTimeout(() => {
+        if (that._canvasCtx) return;
+        that._canvasCtx = wx.createCanvasContext("brushCanvas", that);
+        that._canvasCtx.setStrokeStyle("#e74c3c");
+        that._canvasCtx.setLineWidth(that.data.brushSize);
+        that._canvasCtx.setLineCap("round");
+        that._canvasCtx.setLineJoin("round");
+        that._canvasCtx.clearRect(0, 0, that.data.canvasWidth, that.data.canvasHeight);
+        that._canvasCtx.draw();
+      }, 100);
     }
-    this.brushPts = [{ x: px, y: py }];
-    this.setData({ brushDots: [{ x: px, y: py }], lastX: px, lastY: py, brushPtsLen: 1 });
   },
 
-  onBrushMove(e) {
-    if (!this.isDrawing || !this.rectReady) return;
-    const t = e.touches[0];
-    const cx = t.clientX !== undefined ? t.clientX : t.x;
-    const cy = t.clientY !== undefined ? t.clientY : t.y;
-    const px = Math.round(cx - this.imgRect.left);
-    const py = Math.round(cy - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) {
-      this.setData({ lastX: cx, lastY: cy });
-      return;
-    }
-    this.brushPts.push({ x: px, y: py });
-    const newDots = this.data.brushDots.concat([{ x: px, y: py }]);
-    this.setData({ brushDots: newDots, lastX: px, lastY: py, brushPtsLen: this.brushPts.length });
+  onBrushSizeChange(e) {
+    this.setData({ brushSize: e.detail.value });
+    if (this._canvasCtx) this._canvasCtx.setLineWidth(e.detail.value);
   },
 
-  onBrushEnd() { this.isDrawing = false; },
+  onTouchStart(e) {
+    if (!this._canvasCtx || !this._rect || !this.data.brushMode) return;
+    const that = this;
+    // 每次触摸重新查询位置，处理滚动偏移
+    wx.createSelectorQuery().in(that)
+      .select("#mainImage")
+      .boundingClientRect((rect) => {
+        if (!rect || rect.width <= 0 || rect.height <= 0) return;
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+        that._rect = { left: rect.left, top: rect.top, width: w, height: h };
+        that._drawing = true;
+        const t = e.touches[0];
+        // clientX/Y 与 boundingClientRect 都是视口坐标
+        const px = Math.round(t.clientX - rect.left);
+        const py = Math.round(t.clientY - rect.top);
+        that._pts = [{ x: px, y: py }];
+        that.setData({ brushPtsCount: 1 });
+        // 画起点
+        that._canvasCtx.beginPath();
+        that._canvasCtx.arc(px, py, that.data.brushSize / 2, 0, 2 * Math.PI);
+        that._canvasCtx.fillStyle = "#e74c3c";
+        that._canvasCtx.fill();
+        that._canvasCtx.draw(true);
+      }).exec();
+  },
 
-  onBrushInpaint() {
-    if (!this.data.image || this.brushPts.length < 2) {
-      wx.showToast({ title: "请在图片上涂抹水印区域", icon: "none" });
+  onTouchMove(e) {
+    if (!this._drawing || !this._canvasCtx || !this._rect) return;
+    const t = e.touches[0];
+    // clientX/Y 与 _rect.left/top 都是视口坐标
+    const px = Math.round(t.clientX - this._rect.left);
+    const py = Math.round(t.clientY - this._rect.top);
+    const prev = this._pts[this._pts.length - 1];
+    if (prev && Math.abs(prev.x - px) < 3 && Math.abs(prev.y - py) < 3) return;
+    this._pts.push({ x: px, y: py });
+    this.setData({ brushPtsCount: this._pts.length });
+    // 画线
+    this._canvasCtx.beginPath();
+    this._canvasCtx.moveTo(prev.x, prev.y);
+    this._canvasCtx.lineTo(px, py);
+    this._canvasCtx.stroke();
+    this._canvasCtx.draw(true);
+  },
+
+  onTouchEnd() { this._drawing = false; },
+
+  onBrushSubmit() {
+    if (!this.data.image || this._pts.length < 2) {
+      wx.showToast({ title: "请先在图片上涂抹水印区域", icon: "none" });
       return;
     }
     if (this.data.processing) return;
-    let sx = 1, sy = 1;
-    if (this.origW > 0 && this.imgRect && this.imgRect.width > 0) {
-      sx = this.origW / this.imgRect.width;
-      sy = this.origH / this.imgRect.height;
+    
+    let scaleX = 1, scaleY = 1;
+    if (this._imgW > 0 && this.data.canvasWidth > 0) {
+      scaleX = this._imgW / this.data.canvasWidth;
+      scaleY = this._imgH / this.data.canvasHeight;
     }
-    const pts = this.brushPts.map(p => ({ x: Math.round(p.x * sx), y: Math.round(p.y * sy) }));
+    const scaledPts = this._pts.map(pt => ({
+      x: Math.round(pt.x * scaleX),
+      y: Math.round(pt.y * scaleY)
+    }));
+    
     this.setData({ processing: true });
     wx.showLoading({ title: "处理中..." });
     api.uploadAndInpaint(this.data.image, {
-      pointsJson: JSON.stringify(pts),
-      brushRadius: String(Math.round(this.data.brushSize * (sx + sy) / 2))
+      pointsJson: JSON.stringify(scaledPts),
+      brushRadius: String(Math.round(this.data.brushSize * Math.min(scaleX, scaleY)))
     }).then((res) => {
-      this.setData({ resultImage: res.path, brushMode: false, brushDots: [] });
+      this.setData({ resultImage: res.path, brushMode: false, brushPtsCount: 0 });
       wx.hideLoading();
       wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
@@ -148,8 +187,11 @@ Page({
   },
 
   onReset() {
-    this.setData({ image: "", resultImage: "", brushMode: false, processing: false, brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
-    this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.rectReady = false;
-    this.origW = 0; this.origH = 0;
+    this.setData({ 
+      image: "", resultImage: "", brushMode: false, processing: false,
+      canvasWidth: 300, canvasHeight: 150, brushPtsCount: 0
+    });
+    this._pts = []; this._canvasCtx = null; this._rect = null;
+    this._drawing = false; this._imgW = 0; this._imgH = 0;
   }
 });
