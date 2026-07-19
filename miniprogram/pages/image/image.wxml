@@ -1,4 +1,4 @@
-﻿<view class="container">
+<view class="container">
   <view class="card">
     <view class="card-title">图片去水印</view>
     <view class="card-desc">上传图片后一键去水印，或用画笔涂抹指定区域</view>
