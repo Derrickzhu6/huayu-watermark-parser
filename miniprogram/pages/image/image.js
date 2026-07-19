@@ -10,6 +10,7 @@ Page({
   imgRect: null,
   origW: 0,
   origH: 0,
+  rectReady: false,
 
   onChooseImage() {
     wx.chooseImage({
@@ -17,7 +18,8 @@ Page({
       sizeType: ["original"],
       success: (res) => {
         this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false, brushDots: [] });
-        this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
+        this.brushPts = []; this.isDrawing = false; this.imgRect = null;
+        this.origW = 0; this.origH = 0; this.rectReady = false;
       }
     });
   },
@@ -28,32 +30,25 @@ Page({
       src: that.data.image,
       success: (info) => { that.origW = info.width; that.origH = info.height; }
     });
-    that._updateRect();
+    // 延迟查询坐标，等布局稳定
+    setTimeout(() => { that._queryRect(); }, 500);
   },
 
-  _updateRect() {
+  _queryRect() {
     const that = this;
     wx.createSelectorQuery().in(that)
       .select(".image-wrap")
-      .boundingClientRect()
-      .selectViewport().scrollOffset()
-      .exec((res) => {
-        if (!res || !res[0]) {
-          // 重试一次
-          setTimeout(() => { that._updateRect(); }, 300);
-          return;
-        }
-        const rect = res[0];
-        const scroll = res[1] || { scrollTop: 0, scrollLeft: 0 };
+      .boundingClientRect((rect) => {
         if (rect && rect.width > 0 && rect.height > 0) {
           that.imgRect = {
-            left: rect.left + scroll.scrollLeft,
-            top: rect.top + scroll.scrollTop,
-            width: rect.width,
-            height: rect.height
+            left: rect.left,
+            top: rect.top,
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
           };
+          that.rectReady = true;
         }
-      });
+      }).exec();
   },
 
   onToggleBrush() {
@@ -61,8 +56,8 @@ Page({
     this.setData({ brushMode: m, brushDots: [] });
     this.brushPts = [];
     this.isDrawing = false;
-    if (m && !this.imgRect) {
-      this._updateRect();
+    if (m && !this.rectReady) {
+      this._queryRect();
     }
   },
 
@@ -85,35 +80,26 @@ Page({
   },
 
   onBrushStart(e) {
-    if (!this.imgRect || !this.data.brushMode) return;
-    // 确保 imgRect 是有效的
-    if (!this.imgRect.left || !this.imgRect.top) return;
-    
+    if (!this.rectReady || !this.data.brushMode) return;
     this.isDrawing = true;
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    
-    // 验证坐标有效性
-    if (isNaN(px) || isNaN(py) || px < 0 || py < 0) return;
-    if (px > this.imgRect.width || py > this.imgRect.height) return;
-    
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
     this.brushPts = [{ x: px, y: py }];
     this.setData({ brushDots: [{ x: px, y: py }] });
   },
 
   onBrushMove(e) {
-    if (!this.isDrawing || !this.imgRect) return;
+    if (!this.isDrawing || !this.rectReady) return;
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    if (isNaN(px) || isNaN(py) || px < 0 || py < 0) return;
-    if (px > this.imgRect.width || py > this.imgRect.height) return;
-    
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
     this.brushPts.push({ x: px, y: py });
-    // 每3个点显示一个标记
     if (this.brushPts.length % 3 === 0) {
-      this.setData({ brushDots: [].concat(this.data.brushDots, [{ x: px, y: py }]) });
+      this.data.brushDots.push({ x: px, y: py });
+      this.setData({ brushDots: this.data.brushDots });
     }
   },
 
@@ -155,6 +141,7 @@ Page({
 
   onReset() {
     this.setData({ image: "", resultImage: "", brushMode: false, processing: false, brushDots: [] });
-    this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
+    this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.rectReady = false;
+    this.origW = 0; this.origH = 0;
   }
 });
