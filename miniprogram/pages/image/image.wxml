@@ -8,11 +8,18 @@
     <view wx:if="{{image}}" class="preview-wrap">
       <view class="image-wrap" id="imageWrap">
         <image src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"></image>
-        <!-- 纯 view 触摸层，不用 canvas -->
-        <view class="touch-layer {{brushMode ? '' : 'hidden'}}"
+        
+        <!-- 触摸层：brushMode 时淡红色背景显示覆盖范围 -->
+        <view class="touch-layer {{brushMode ? 'active' : 'hidden'}}"
           catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></view>
-        <!-- 显示涂抹位置的标记点 -->
-        <view wx:for="{{brushDots}}" wx:key="*this" class="brush-dot" style="left:{{item.x - 4}}px; top:{{item.y - 4}}px; width:{{brushSize}}px; height:{{brushSize}}px;"></view>
+        
+        <!-- 涂抹标记点 -->
+        <view wx:for="{{brushDots}}" wx:key="index" class="brush-dot" style="left:{{item.x - 4}}px; top:{{item.y - 4}}px; width:{{brushSize}}px; height:{{brushSize}}px;"></view>
+        
+        <!-- 调试坐标显示 -->
+        <view class="debug-coord" wx:if="{{brushMode}}">
+          坐标: ({{lastX}}, {{lastY}}) | 点: {{brushPtsLen}}
+        </view>
       </view>
       
       <view wx:if="{{brushMode}}" class="brush-tools">

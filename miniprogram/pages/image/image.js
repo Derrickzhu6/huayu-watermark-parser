@@ -3,7 +3,7 @@
 Page({
   data: { 
     image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8,
-    brushDots: []
+    brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0
   },
   brushPts: [],
   isDrawing: false,
@@ -17,7 +17,8 @@ Page({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false, brushDots: [] });
+        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false, 
+          brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
         this.brushPts = []; this.isDrawing = false; this.imgRect = null;
         this.origW = 0; this.origH = 0; this.rectReady = false;
       }
@@ -52,7 +53,7 @@ Page({
 
   onToggleBrush() {
     const m = !this.data.brushMode;
-    this.setData({ brushMode: m, brushDots: [] });
+    this.setData({ brushMode: m, brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
     this.brushPts = [];
     this.isDrawing = false;
     if (m && !this.rectReady) {
@@ -69,7 +70,7 @@ Page({
     this.setData({ processing: true });
     wx.showLoading({ title: "处理中..." });
     api.uploadAndInpaint(this.data.image, { useAuto: true, radius: "5" }).then((res) => {
-      this.setData({ resultImage: res.path });
+      this.setData({ resultImage: res.path, brushDots: [] });
       wx.hideLoading();
       wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
@@ -86,9 +87,12 @@ Page({
     const cy = t.clientY !== undefined ? t.clientY : t.y;
     const px = Math.round(cx - this.imgRect.left);
     const py = Math.round(cy - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) {
+      this.setData({ lastX: cx, lastY: cy, brushPtsLen: 0 });
+      return;
+    }
     this.brushPts = [{ x: px, y: py }];
-    this.setData({ brushDots: [{ x: px, y: py }] });
+    this.setData({ brushDots: [{ x: px, y: py }], lastX: px, lastY: py, brushPtsLen: 1 });
   },
 
   onBrushMove(e) {
@@ -98,11 +102,13 @@ Page({
     const cy = t.clientY !== undefined ? t.clientY : t.y;
     const px = Math.round(cx - this.imgRect.left);
     const py = Math.round(cy - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) {
+      this.setData({ lastX: cx, lastY: cy });
+      return;
+    }
     this.brushPts.push({ x: px, y: py });
-    // 关键修复：创建新数组，不能直接 push 到 data 上
-    const dots = this.data.brushDots.concat([{ x: px, y: py }]);
-    this.setData({ brushDots: dots });
+    const newDots = this.data.brushDots.concat([{ x: px, y: py }]);
+    this.setData({ brushDots: newDots, lastX: px, lastY: py, brushPtsLen: this.brushPts.length });
   },
 
   onBrushEnd() { this.isDrawing = false; },
@@ -142,7 +148,7 @@ Page({
   },
 
   onReset() {
-    this.setData({ image: "", resultImage: "", brushMode: false, processing: false, brushDots: [] });
+    this.setData({ image: "", resultImage: "", brushMode: false, processing: false, brushDots: [], lastX: 0, lastY: 0, brushPtsLen: 0 });
     this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.rectReady = false;
     this.origW = 0; this.origH = 0;
   }
