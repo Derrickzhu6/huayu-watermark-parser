@@ -2,7 +2,8 @@
 
 Page({
   data: { 
-    image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8
+    image: "", resultImage: "", brushMode: false, processing: false, brushSize: 8,
+    brushDots: []
   },
   brushPts: [],
   isDrawing: false,
@@ -15,7 +16,7 @@ Page({
       count: 1,
       sizeType: ["original"],
       success: (res) => {
-        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false });
+        this.setData({ image: res.tempFilePaths[0], resultImage: "", brushMode: false, processing: false, brushDots: [] });
         this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
       }
     });
@@ -27,6 +28,11 @@ Page({
       src: that.data.image,
       success: (info) => { that.origW = info.width; that.origH = info.height; }
     });
+    that._updateRect();
+  },
+
+  _updateRect() {
+    const that = this;
     setTimeout(() => {
       wx.createSelectorQuery().in(that)
         .select(".image-wrap")
@@ -35,7 +41,7 @@ Page({
         .exec((res) => {
           const rect = res[0];
           const scroll = res[1];
-          if (rect && rect.width > 0) {
+          if (rect && rect.width > 0 && rect.height > 0) {
             that.imgRect = {
               left: rect.left + (scroll ? scroll.scrollLeft : 0),
               top: rect.top + (scroll ? scroll.scrollTop : 0),
@@ -49,26 +55,11 @@ Page({
 
   onToggleBrush() {
     const m = !this.data.brushMode;
-    this.setData({ brushMode: m });
+    this.setData({ brushMode: m, brushDots: [] });
     this.brushPts = [];
     this.isDrawing = false;
     if (m && !this.imgRect) {
-      wx.createSelectorQuery().in(this)
-        .select(".image-wrap")
-        .boundingClientRect()
-        .selectViewport().scrollOffset()
-        .exec((res) => {
-          const rect = res[0];
-          const scroll = res[1];
-          if (rect && rect.width > 0) {
-            this.imgRect = {
-              left: rect.left + (scroll ? scroll.scrollLeft : 0),
-              top: rect.top + (scroll ? scroll.scrollTop : 0),
-              width: rect.width,
-              height: rect.height
-            };
-          }
-        }).exec();
+      setTimeout(() => { this._updateRect(); }, 200);
     }
   },
 
@@ -96,7 +87,9 @@ Page({
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    this.brushPts = [{ x: Math.max(0, px), y: Math.max(0, py) }];
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    this.brushPts = [{ x: px, y: py }];
+    this.setData({ brushDots: [{ x: px, y: py }] });
   },
 
   onBrushMove(e) {
@@ -104,7 +97,14 @@ Page({
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    this.brushPts.push({ x: Math.max(0, px), y: Math.max(0, py) });
+    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    this.brushPts.push({ x: px, y: py });
+    // 每5个点显示一个标记，避免太多
+    if (this.brushPts.length % 5 === 0) {
+      const dots = this.data.brushDots;
+      dots.push({ x: px, y: py });
+      this.setData({ brushDots: dots });
+    }
   },
 
   onBrushEnd() { this.isDrawing = false; },
@@ -144,7 +144,7 @@ Page({
   },
 
   onReset() {
-    this.setData({ image: "", resultImage: "", brushMode: false, processing: false });
+    this.setData({ image: "", resultImage: "", brushMode: false, processing: false, brushDots: [] });
     this.brushPts = []; this.isDrawing = false; this.imgRect = null; this.origW = 0; this.origH = 0;
   }
 });

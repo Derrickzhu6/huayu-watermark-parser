@@ -6,9 +6,13 @@
     <button class="btn-upload" bindtap="onChooseImage" wx:if="{{!image}}">添加照片</button>
     
     <view wx:if="{{image}}" class="preview-wrap">
-      <view class="image-wrap">
-        <image src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"
-          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></image>
+      <view class="image-wrap" id="imageWrap">
+        <image src="{{image}}" class="preview-img" mode="widthFix" bindload="onImageLoaded"></image>
+        <!-- 纯 view 触摸层，不用 canvas -->
+        <view class="touch-layer {{brushMode ? '' : 'hidden'}}"
+          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></view>
+        <!-- 显示涂抹位置的标记点 -->
+        <view wx:for="{{brushDots}}" wx:key="*this" class="brush-dot" style="left:{{item.x - 4}}px; top:{{item.y - 4}}px; width:{{brushSize}}px; height:{{brushSize}}px;"></view>
       </view>
       
       <view wx:if="{{brushMode}}" class="brush-tools">
@@ -16,7 +20,7 @@
         <slider class="brush-slider" min="3" max="30" value="{{brushSize}}" bindchange="onBrushSizeChange"></slider>
       </view>
       
-      <view wx:if="{{brushMode && brushPts.length >= 2}}" class="brush-actions">
+      <view wx:if="{{brushMode && brushPts.length >= 2}}">
         <button class="btn-primary" bindtap="onBrushInpaint">开始修复</button>
       </view>
       
