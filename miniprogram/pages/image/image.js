@@ -33,24 +33,27 @@ Page({
 
   _updateRect() {
     const that = this;
-    setTimeout(() => {
-      wx.createSelectorQuery().in(that)
-        .select(".image-wrap")
-        .boundingClientRect()
-        .selectViewport().scrollOffset()
-        .exec((res) => {
-          const rect = res[0];
-          const scroll = res[1];
-          if (rect && rect.width > 0 && rect.height > 0) {
-            that.imgRect = {
-              left: rect.left + (scroll ? scroll.scrollLeft : 0),
-              top: rect.top + (scroll ? scroll.scrollTop : 0),
-              width: rect.width,
-              height: rect.height
-            };
-          }
-        });
-    }, 400);
+    wx.createSelectorQuery().in(that)
+      .select(".image-wrap")
+      .boundingClientRect()
+      .selectViewport().scrollOffset()
+      .exec((res) => {
+        if (!res || !res[0]) {
+          // 重试一次
+          setTimeout(() => { that._updateRect(); }, 300);
+          return;
+        }
+        const rect = res[0];
+        const scroll = res[1] || { scrollTop: 0, scrollLeft: 0 };
+        if (rect && rect.width > 0 && rect.height > 0) {
+          that.imgRect = {
+            left: rect.left + scroll.scrollLeft,
+            top: rect.top + scroll.scrollTop,
+            width: rect.width,
+            height: rect.height
+          };
+        }
+      });
   },
 
   onToggleBrush() {
@@ -59,7 +62,7 @@ Page({
     this.brushPts = [];
     this.isDrawing = false;
     if (m && !this.imgRect) {
-      setTimeout(() => { this._updateRect(); }, 200);
+      this._updateRect();
     }
   },
 
@@ -83,11 +86,18 @@ Page({
 
   onBrushStart(e) {
     if (!this.imgRect || !this.data.brushMode) return;
+    // 确保 imgRect 是有效的
+    if (!this.imgRect.left || !this.imgRect.top) return;
+    
     this.isDrawing = true;
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    
+    // 验证坐标有效性
+    if (isNaN(px) || isNaN(py) || px < 0 || py < 0) return;
+    if (px > this.imgRect.width || py > this.imgRect.height) return;
+    
     this.brushPts = [{ x: px, y: py }];
     this.setData({ brushDots: [{ x: px, y: py }] });
   },
@@ -97,13 +107,13 @@ Page({
     const t = e.touches[0];
     const px = Math.round(t.x - this.imgRect.left);
     const py = Math.round(t.y - this.imgRect.top);
-    if (px < 0 || py < 0 || px > this.imgRect.width || py > this.imgRect.height) return;
+    if (isNaN(px) || isNaN(py) || px < 0 || py < 0) return;
+    if (px > this.imgRect.width || py > this.imgRect.height) return;
+    
     this.brushPts.push({ x: px, y: py });
-    // 每5个点显示一个标记，避免太多
-    if (this.brushPts.length % 5 === 0) {
-      const dots = this.data.brushDots;
-      dots.push({ x: px, y: py });
-      this.setData({ brushDots: dots });
+    // 每3个点显示一个标记
+    if (this.brushPts.length % 3 === 0) {
+      this.setData({ brushDots: [].concat(this.data.brushDots, [{ x: px, y: py }]) });
     }
   },
 
@@ -127,7 +137,7 @@ Page({
       pointsJson: JSON.stringify(pts),
       brushRadius: String(Math.round(this.data.brushSize * (sx + sy) / 2))
     }).then((res) => {
-      this.setData({ resultImage: res.path, brushMode: false });
+      this.setData({ resultImage: res.path, brushMode: false, brushDots: [] });
       wx.hideLoading();
       wx.showToast({ title: "完成", icon: "success" });
     }).catch((e) => {
