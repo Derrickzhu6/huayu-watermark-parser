@@ -250,36 +250,25 @@ class FastHandler(BaseHTTPRequestHandler):
         else:
             data = parse_urlencoded(body)
 
-        if path == "/api/upload":
-            self.handle_upload(data)
-        elif path == "/api/inpaint":
-            self.handle_inpaint(data)
-        elif path == "/api/remove-text":
-            self.handle_remove_text(data)
-        elif path == "/api/frequency":
-            self.handle_frequency(data)
-        elif path == "/api/remove-color":
-            self.handle_remove_color(data)
-        elif path == "/api/remove-alpha":
-            self.handle_remove_alpha(data)
-        elif path == "/api/convert/image":
-            self.handle_convert_image(data)
-        elif path == "/api/convert/video":
-            self.handle_convert_video(data)
-        elif path == "/api/convert/audio":
-            self.handle_convert_audio(data)
-        elif path == "/api/convert/file-encoding":
-            self.handle_convert_file_encoding(data)
-        elif path == "/api/video/download": return self.handle_video_download(form)
-        if path == "/api/convert":
-            self.handle_convert_generic(data)
+        if path == "/api/upload": return self.handle_upload(data)
+        elif path == "/api/inpaint": return self.handle_inpaint(data)
+        elif path == "/api/remove-text": return self.handle_remove_text(data)
+        elif path == "/api/frequency": return self.handle_frequency(data)
+        elif path == "/api/remove-color": return self.handle_remove_color(data)
+        elif path == "/api/remove-alpha": return self.handle_remove_alpha(data)
+        elif path == "/api/convert/image": return self.handle_convert_image(data)
+        elif path == "/api/convert/video": return self.handle_convert_video(data)
+        elif path == "/api/convert/audio": return self.handle_convert_audio(data)
+        elif path == "/api/convert/file-encoding": return self.handle_convert_file_encoding(data)
+        elif path == "/api/video/download": return self.handle_video_download(data)
+        elif path == "/api/convert": return self.handle_convert_generic(data)
         elif path == "/api/video/parse" or path == "/api/parse_url":
             try:
-                self.handle_video_parse(data)
+                return self.handle_video_parse(data)
             except Exception as _e:
-                self.send_json({"success": False, "error": "处理错误: " + str(_e)[:100]})
+                return self.send_json({"success": False, "error": "处理错误: " + str(_e)[:100]})
         else:
-            self.send_error(404, "Not Found")
+            return self.send_error(404, "Not Found")
 
 
     def handle_video_download(self, data):
