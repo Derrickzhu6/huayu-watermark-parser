@@ -23,7 +23,7 @@
       <view class="brush-section">
         <button class="btn-secondary" bindtap="onToggleBrush">{{brushMode ? "关闭画笔" : "涂抹修复"}}</button>
         <view class="brush-hint" wx:if="{{brushMode}}">在图片上涂抹水印区域，然后点"开始修复"</view>
-        <button class="btn-primary" wx:if="{{brushMode && brushReady}}" bindtap="onBrushInpaint">开始修复</button>
+        <button class="btn-primary" wx:if="{{brushMode && brushPts.length >= 2}}" bindtap="onBrushInpaint">开始修复</button>
       </view>
     </view>
     

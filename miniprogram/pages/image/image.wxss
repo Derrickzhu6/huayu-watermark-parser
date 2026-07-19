@@ -4,10 +4,10 @@
 .card-desc { font-size: 12px; color: #636e72; margin-bottom: 12px; }
 .btn-upload { width: 100%; padding: 20px; background: #f8f9fa; border: 2px dashed #e0e0e0; border-radius: 10px; font-size: 14px; color: #636e72; text-align: center; }
 .preview-wrap { margin-bottom: 8px; }
-.image-canvas-wrap { position: relative; }
+.image-canvas-wrap { position: relative; display: inline-block; width: 100%; }
 .preview { width: 100%; border-radius: 8px; display: block; }
 .brush-overlay {
-  position: absolute; top: 0; left: 0;
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   width: 100%; height: 100%;
   border-radius: 8px;
 }
@@ -23,3 +23,7 @@
 .brush-hint { font-size: 11px; color: #e74c3c; margin-bottom: 6px; }
 .result-section { margin-top: 12px; }
 .footer { text-align: center; font-size: 11px; color: #b2bec3; padding: 20px 0; }
+/* 修复canvas对齐 */
+.image-canvas-wrap { line-height: 0; font-size: 0; }
+.image-canvas-wrap image { vertical-align: top; }
+.image-canvas-wrap canvas { vertical-align: top; }
