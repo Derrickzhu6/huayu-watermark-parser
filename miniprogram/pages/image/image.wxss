@@ -7,9 +7,11 @@
 .image-canvas-wrap { position: relative; display: inline-block; width: 100%; line-height: 0; font-size: 0; }
 .preview { width: 100%; border-radius: 8px; display: block; }
 .image-canvas-wrap image { vertical-align: top; }
+/* canvas 永远显示，不隐藏，只通过 z-index 和 pointer-events 控制 */
+.brush-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; pointer-events: none; z-index: 5; }
+/* 触摸层在 canvas 上方，捕获触摸事件 */
 .brush-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; z-index: 10; }
 .brush-overlay.hidden { display: none; }
-.brush-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 8px; pointer-events: none; }
 .brush-tools { display: flex; align-items: center; margin-bottom: 8px; }
 .brush-label { font-size: 12px; color: #636e72; white-space: nowrap; margin-right: 8px; }
 .brush-slider { flex: 1; }

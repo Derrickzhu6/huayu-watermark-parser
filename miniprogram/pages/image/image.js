@@ -17,6 +17,7 @@ Page({
   isDrawing: false,
   origImgWidth: 0,
   origImgHeight: 0,
+  ctxReady: false,
 
   onChooseImage() {
     const that = this;
@@ -38,11 +39,11 @@ Page({
         that.isDrawing = false;
         that.origImgWidth = 0;
         that.origImgHeight = 0;
+        that.ctxReady = false;
       }
     });
   },
 
-  // 图片加载后获取尺寸
   onImageLoaded() {
     const that = this;
     // 获取原图尺寸
@@ -53,39 +54,25 @@ Page({
         that.origImgHeight = info.height;
       }
     });
-    // 获取显示尺寸（等布局稳定）
+    // 获取显示尺寸
     setTimeout(() => {
-      that._updateImageRect();
+      wx.createSelectorQuery().in(that)
+        .select("#mainImage")
+        .boundingClientRect((rect) => {
+          if (rect && rect.width > 0 && rect.height > 0) {
+            const w = Math.round(rect.width);
+            const h = Math.round(rect.height);
+            that.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
+            that.setData({ canvasW: w, canvasH: h }, () => {
+              // canvas 尺寸更新后创建上下文（只创建一次）
+              if (!that.ctxReady) {
+                that.canvasCtx = wx.createCanvasContext("brushCanvas", that);
+                that.ctxReady = true;
+              }
+            });
+          }
+        }).exec();
     }, 400);
-  },
-
-  // 获取图片显示区域的位置和尺寸
-  _updateImageRect() {
-    const that = this;
-    wx.createSelectorQuery().in(that)
-      .select("#mainImage")
-      .boundingClientRect((rect) => {
-        if (rect && rect.width > 0 && rect.height > 0) {
-          that.imgRect = { 
-            left: rect.left, top: rect.top, 
-            width: Math.round(rect.width), 
-            height: Math.round(rect.height) 
-          };
-          that.setData({
-            canvasW: Math.round(rect.width),
-            canvasH: Math.round(rect.height)
-          });
-          // 创建 canvas 上下文
-          that._setupCanvas();
-        }
-      }).exec();
-  },
-
-  // 创建 canvas 画笔上下文
-  _setupCanvas() {
-    if (this.canvasCtx) return;
-    const ctx = wx.createCanvasContext("brushCanvas", this);
-    this.canvasCtx = ctx;
   },
 
   onAutoInpaint() {
@@ -107,16 +94,31 @@ Page({
     this.setData({ brushMode: m });
     this.brushPts = [];
     this.isDrawing = false;
-    if (m) {
-      // 如果还没获取到尺寸，再查一次
-      if (!this.imgRect || !this.canvasCtx) {
-        setTimeout(() => { this._updateImageRect(); }, 300);
-      }
-      // 清除画布
-      if (this.canvasCtx) {
-        this.canvasCtx.clearRect(0, 0, this.data.canvasW, this.data.canvasH);
-        this.canvasCtx.draw();
-      }
+    
+    // 清除 canvas 上的旧线条
+    if (this.canvasCtx) {
+      this.canvasCtx.clearRect(0, 0, this.data.canvasW, this.data.canvasH);
+      this.canvasCtx.draw();
+    }
+    
+    // 如果还没获取到图片尺寸，再查一次
+    if (m && (!this.imgRect || !this.ctxReady)) {
+      setTimeout(() => {
+        wx.createSelectorQuery().in(this)
+          .select("#mainImage")
+          .boundingClientRect((rect) => {
+            if (rect && rect.width > 0 && rect.height > 0) {
+              const w = Math.round(rect.width);
+              const h = Math.round(rect.height);
+              this.imgRect = { left: rect.left, top: rect.top, width: w, height: h };
+              this.setData({ canvasW: w, canvasH: h });
+              if (!this.ctxReady) {
+                this.canvasCtx = wx.createCanvasContext("brushCanvas", this);
+                this.ctxReady = true;
+              }
+            }
+          }).exec();
+      }, 200);
     }
   },
 
@@ -124,9 +126,8 @@ Page({
     this.setData({ brushSize: e.detail.value });
   },
 
-  // 开始涂抹
   onBrushStart(e) {
-    if (!this.canvasCtx || !this.imgRect || !this.data.brushMode) return;
+    if (!this.ctxReady || !this.imgRect || !this.data.brushMode) return;
     this.isDrawing = true;
     const t = e.touches[0];
     const x = t.x - this.imgRect.left;
@@ -134,21 +135,20 @@ Page({
     const px = Math.max(0, Math.round(x));
     const py = Math.max(0, Math.round(y));
     this.brushPts = [{ x: px, y: py }];
-    // 画起始点
+    
     this.canvasCtx.setStrokeStyle("#e74c3c");
     this.canvasCtx.setLineWidth(this.data.brushSize);
     this.canvasCtx.setLineCap("round");
     this.canvasCtx.setLineJoin("round");
     this.canvasCtx.beginPath();
-    this.canvasCtx.moveTo(px, py);
-    this.canvasCtx.lineTo(px + 0.5, py + 0.5);
-    this.canvasCtx.stroke();
+    this.canvasCtx.arc(px, py, this.data.brushSize / 2, 0, 2 * Math.PI);
+    this.canvasCtx.fillStyle = "#e74c3c";
+    this.canvasCtx.fill();
     this.canvasCtx.draw(true);
   },
 
-  // 移动涂抹
   onBrushMove(e) {
-    if (!this.isDrawing || !this.canvasCtx || !this.imgRect) return;
+    if (!this.isDrawing || !this.ctxReady || !this.imgRect) return;
     const t = e.touches[0];
     const x = t.x - this.imgRect.left;
     const y = t.y - this.imgRect.top;
@@ -156,6 +156,7 @@ Page({
     const py = Math.max(0, Math.round(y));
     const prev = this.brushPts[this.brushPts.length - 1];
     this.brushPts.push({ x: px, y: py });
+    
     this.canvasCtx.setStrokeStyle("#e74c3c");
     this.canvasCtx.setLineWidth(this.data.brushSize);
     this.canvasCtx.setLineCap("round");
@@ -171,7 +172,6 @@ Page({
     this.isDrawing = false; 
   },
 
-  // 发送修复请求
   onBrushInpaint() {
     if (!this.data.image || this.brushPts.length < 2) {
       wx.showToast({ title: "请先在图片上涂抹水印区域", icon: "none" });
@@ -179,7 +179,6 @@ Page({
     }
     if (this.data.processing) return;
     
-    // 坐标缩放到原图尺寸
     let scaleX = 1, scaleY = 1;
     if (this.origImgWidth > 0 && this.imgRect && this.imgRect.width > 0) {
       scaleX = this.origImgWidth / this.imgRect.width;
@@ -223,5 +222,6 @@ Page({
     this.isDrawing = false;
     this.origImgWidth = 0;
     this.origImgHeight = 0;
+    this.ctxReady = false;
   }
 });

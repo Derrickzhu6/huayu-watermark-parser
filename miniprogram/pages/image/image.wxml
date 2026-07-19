@@ -6,14 +6,13 @@
     <button class="btn-upload" bindtap="onChooseImage" wx:if="{{!image}}">添加照片</button>
     
     <view wx:if="{{image}}" class="preview-wrap">
-      <view class="image-canvas-wrap" id="imageWrap">
+      <view class="image-canvas-wrap">
         <image id="mainImage" src="{{image}}" class="preview" mode="widthFix" bindload="onImageLoaded"></image>
-        <!-- 画笔触摸层：用 view 代替 canvas 捕获触摸，避免 canvas 尺寸问题 -->
+        <!-- canvas 永远显示，避免上下文销毁 -->
+        <canvas canvas-id="brushCanvas" class="brush-canvas" width="{{canvasW}}" height="{{canvasH}}"></canvas>
+        <!-- 触摸层只控制触摸接收，不控制 canvas 显示 -->
         <view class="brush-overlay {{brushMode ? '' : 'hidden'}}"
-          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd">
-          <!-- Canvas 只用来显示画出来的线条 -->
-          <canvas canvas-id="brushCanvas" class="brush-canvas" width="{{canvasW}}" height="{{canvasH}}"></canvas>
-        </view>
+          catchtouchstart="onBrushStart" catchtouchmove="onBrushMove" catchtouchend="onBrushEnd"></view>
       </view>
       <view class="brush-tools" wx:if="{{brushMode}}">
         <text class="brush-label">画笔大小: {{brushSize}}</text>
